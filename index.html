@@ -91,6 +91,9 @@
     <!-- 自定義訊息盒 -->
     <div id="toast" class="hidden fixed top-10 left-1/2 -translate-x-1/2 z-[3000] bg-[#4A3728] text-white px-6 py-3 rounded-full shadow-2xl font-bold transition-all"></div>
 
+    <!-- 靜態檔案輸入框 -->
+    <input type="file" id="file-input" class="hidden" accept=".json">
+
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -134,20 +137,28 @@
         const NAME_2 = "泓翰";
         const monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
 
-        // --- 初始化認證 ---
+        // --- 初始化認證 (修復：處理 Custom Token Mismatch 錯誤) ---
         async function initAuth() {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                    try {
+                        // 嘗試使用提供的自定義令牌
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } catch (tokenError) {
+                        // 如果令牌不匹配 (auth/custom-token-mismatch) 或失效，自動回退到匿名登入
+                        console.warn("Custom token sign-in failed, falling back to anonymous:", tokenError);
+                        await signInAnonymously(auth);
+                    }
                 } else {
                     await signInAnonymously(auth);
                 }
             } catch (e) {
                 console.error("Auth Error", e);
-                showToast("連線失敗，請重新整理");
+                showToast("登入連線失敗");
             }
         }
 
+        // 監聽認證狀態
         onAuthStateChanged(auth, (user) => {
             state.user = user;
             if (user) {
@@ -155,8 +166,10 @@
             }
         });
 
-        // --- 資料監聽 ---
+        // --- 資料監聽 (RULE 3: 認證後執行) ---
         function setupListeners() {
+            if (!state.user) return;
+
             const sessionsCol = collection(db, 'artifacts', appId, 'public', 'data', 'sessions');
             onSnapshot(sessionsCol, (snapshot) => {
                 const data = [];
@@ -170,20 +183,21 @@
                 document.getElementById('loading-screen').classList.add('hidden');
                 render();
             }, (err) => {
-                console.error("Snapshot Error", err);
-                showToast("資料讀取錯誤");
+                console.error("Firestore Snapshot Error", err);
+                showToast("資料同步錯誤");
             });
 
             const memoDoc = doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo');
             onSnapshot(memoDoc, (docSnap) => {
                 if (docSnap.exists()) state.memoData = docSnap.data().content;
                 if (state.view === 'memo') render();
-            });
+            }, (err) => console.error("Memo Snapshot Error", err));
         }
 
         // --- 工具函數 ---
         window.showToast = (msg) => {
             const t = document.getElementById('toast');
+            if (!t) return;
             t.textContent = msg;
             t.classList.remove('hidden');
             setTimeout(() => t.classList.add('hidden'), 3000);
@@ -234,11 +248,13 @@
         // --- 渲染邏輯 ---
         function render() {
             const main = document.getElementById('main-content');
+            if (!main) return;
             main.innerHTML = '';
             
             // 更新導覽列狀態
             ['home', 'calendar', 'report', 'memo'].forEach(id => {
                 const navBtn = document.getElementById(`nav-${id}`);
+                if (!navBtn) return;
                 if (state.view === id) {
                     navBtn.classList.add('text-[#8C7355]', 'scale-110');
                     navBtn.classList.remove('text-[#D9C5B2]');
@@ -268,7 +284,7 @@
                         <div class="absolute top-0 right-0 p-6 opacity-10"><i data-lucide="heart" class="w-[100px] h-[100px]" fill="white"></i></div>
                         <p class="text-[10px] font-black tracking-widest opacity-60 mb-2 uppercase">Family 2026 Balance</p>
                         <h2 class="text-5xl font-black mb-4 tracking-tighter">${familyNet >= 0 ? '+' : ''}$${familyNet}</h2>
-                        <div class="bg-white/20 px-5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2"><i data-lucide="check-circle-2" class="w-3"></i> 數據同步中</div>
+                        <div class="bg-white/20 px-5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2"><i data-lucide="check-circle-2" class="w-3"></i> 雲端數據同步中</div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         ${[NAME_1, NAME_2].map(name => {
@@ -320,8 +336,8 @@
                         <span class="text-[10px] font-black text-[#C4B19E]">${d}</span>
                         ${sessions.length > 0 ? `
                             <div class="mt-1 space-y-0.5">
-                                <div class="text-[7px] p-0.5 rounded scale-90 ${n1 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>佩</span> <span>${n1}</span></div>
-                                <div class="text-[7px] p-0.5 rounded scale-90 ${n2 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>翰</span> <span>${n2}</span></div>
+                                <div class="text-[7px] p-0.5 rounded scale-90 origin-left ${n1 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>佩</span> <span>${n1}</span></div>
+                                <div class="text-[7px] p-0.5 rounded scale-90 origin-left ${n2 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>翰</span> <span>${n2}</span></div>
                             </div>
                         ` : ''}
                     </div>
@@ -344,7 +360,6 @@
                     <button onclick="exportData()" class="flex-1 py-4 bg-white border-2 border-[#F5E6D3] text-[#8C7355] rounded-[1.5rem] text-xs font-black shadow-sm active:scale-95 flex items-center justify-center gap-2"><i data-lucide="download" class="w-4"></i> 匯出備份</button>
                     <button onclick="importTrigger()" class="flex-1 py-4 bg-white border-2 border-[#F5E6D3] text-[#8C7355] rounded-[1.5rem] text-xs font-black shadow-sm active:scale-95 flex items-center justify-center gap-2"><i data-lucide="upload" class="w-4"></i> 匯入資料</button>
                 </div>
-                <input type="file" id="file-input" class="hidden" accept=".json">
             `;
         }
 
@@ -408,11 +423,13 @@
                                     return valB - valA;
                                 }).map((p, idx) => {
                                     const net = state.reportMonth === 'total' ? p.net : (p.monthly[state.reportMonth] || 0);
-                                    const winR = state.reportMonth === 'total' ? (p.totalWins/p.sessions*100) : ((p.monthlyWins[state.reportMonth]||0)/(p.monthlySessions[state.reportMonth]||1)*100);
+                                    const sessions = state.reportMonth === 'total' ? p.sessions : (p.monthlySessions[state.reportMonth] || 0);
+                                    const wins = state.reportMonth === 'total' ? p.totalWins : (p.monthlyWins[state.reportMonth] || 0);
+                                    const winR = sessions > 0 ? (wins / sessions * 100) : 0;
                                     return `
                                         <div onclick="state.selectedPlayer='${p.name}'; render();" class="grid grid-cols-12 items-center px-4 py-5 rounded-[2rem] border-2 cursor-pointer transition-all active:scale-95 ${idx === 0 ? 'bg-[#F0EAD6]/40 border-[#8C7355]/20 shadow-sm' : 'bg-white border-transparent shadow-sm'}">
                                             <div class="col-span-4 flex items-center gap-2"><div class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black ${idx === 0 ? 'bg-[#8C7355] text-white shadow-md' : 'bg-[#F5E6D3] text-[#8C7355]'}">${idx + 1}</div><span class="font-black text-xs truncate">${p.name}</span></div>
-                                            <div class="col-span-2 font-black text-[#C4B19E] text-xs">${state.reportMonth === 'total' ? p.sessions : p.monthlySessions[state.reportMonth]}</div>
+                                            <div class="col-span-2 font-black text-[#C4B19E] text-xs">${sessions}</div>
                                             <div class="col-span-3"><span class="text-[10px] font-black text-[#8C7355] px-1.5 py-0.5 bg-[#FBF8F5] rounded-lg border border-[#F5E6D3]">${winR.toFixed(1)}%</span></div>
                                             <div class="col-span-3 text-right font-black text-sm ${net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${net > 0 ? '+' : ''}${net}</div>
                                         </div>
@@ -435,6 +452,7 @@
 
         // --- 核心操作 ---
         window.saveMemo = async () => {
+            if (!state.user) return;
             const btn = document.getElementById('save-memo-btn');
             const content = document.getElementById('memo-textarea').value;
             btn.disabled = true; btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
@@ -472,6 +490,7 @@
 
         function renderModal() {
             const modal = document.getElementById('modal-container');
+            if (!modal) return;
             modal.classList.remove('hidden');
             
             const summary = {};
@@ -541,6 +560,7 @@
         };
 
         window.deleteSessionImmediate = async (id) => {
+            if (!state.user) return;
             const isCloud = state.allSessions.some(s => s.id === id);
             if (!isCloud) { state.editingSessions = state.editingSessions.filter(s => s.id !== id); renderModal(); return; }
             if (!confirm('確定刪除此場次？')) return;
@@ -552,6 +572,7 @@
         };
 
         window.saveToCloud = async () => {
+            if (!state.user) return;
             const btn = document.getElementById('modal-save-btn');
             btn.disabled = true; btn.innerHTML = '<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
             try {
@@ -569,7 +590,7 @@
         };
 
         window.handleRestore = async () => {
-            if (!confirm('還原到上一步？這會覆蓋目前資料。')) return;
+            if (!state.user || !confirm('還原到上一步？這會覆蓋目前資料。')) return;
             document.getElementById('loading-screen').classList.remove('hidden');
             document.getElementById('loading-text').textContent = '正在還原...';
             try {
@@ -594,22 +615,30 @@
         };
 
         window.importTrigger = () => document.getElementById('file-input').click();
-        document.getElementById('file-input').addEventListener('change', (e) => {
-            const file = e.target.files[0]; if (!file) return;
-            const reader = new FileReader(); reader.onload = async (event) => {
-                try {
-                    const data = JSON.parse(event.target.result);
-                    for (const s of data) {
-                        const { id, ...rest } = s;
-                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
-                    }
-                    showToast("匯入成功");
-                } catch (err) { showToast("匯入格式錯誤"); }
-            };
-            reader.readAsText(file);
+        
+        // --- 初始化事件監聽 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) {
+                fileInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0]; 
+                    if (!file) return;
+                    const reader = new FileReader(); 
+                    reader.onload = async (event) => {
+                        try {
+                            const data = JSON.parse(event.target.result);
+                            for (const s of data) {
+                                const { id, ...rest } = s;
+                                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
+                            }
+                            showToast("匯入成功");
+                        } catch (err) { showToast("匯入格式錯誤"); }
+                    };
+                    reader.readAsText(file);
+                });
+            }
         });
 
-        // 啟動認證與監聽
         initAuth();
 
     </script>
