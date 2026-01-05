@@ -129,6 +129,7 @@
 
         const NAME_1 = "肅佩";
         const NAME_2 = "泓翰";
+        const DEFAULT_STAKES = "50/20";
         const monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
 
         // --- 驗證與監聽 ---
@@ -337,7 +338,7 @@
                             <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30 text-center"><p class="text-[8px] font-bold text-[#C4B19E]">淨盈虧</p><p class="text-xl font-black ${s.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${s.net}</p></div>
                         </div>
                         <div class="space-y-4">
-                            ${hist.slice().reverse().map(h => `<div class="bg-white p-5 rounded-[2rem] border border-[#F5E6D3] shadow-sm"><div class="flex justify-between items-start mb-3"><div><span class="text-xs font-black block text-gray-700">${h.date}</span><span class="text-[9px] text-[#C4B19E]">${h.location}</span></div><span class="text-xl font-black ${h.amount >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${h.amount > 0 ? '+' : ''}${h.amount}</span></div><div class="flex items-center gap-2 mb-3 bg-[#FBF8F5] py-2 px-3 rounded-xl"><i data-lucide="users" class="w-3 text-[#8C7355]"></i><span class="text-[10px] text-gray-600 font-medium">${h.opponents.join('、')}</span></div><div class="flex gap-2 border-t border-dashed border-[#F5E6D3] pt-3"><span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.rounds} 將</span><span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.stakes || '30/10'}</span></div>${h.note ? `<div class="mt-3 p-3 bg-[#F0EAD6]/30 rounded-2xl border-l-4 border-[#8C7355] text-[10px] italic">「 ${h.note} 」</div>` : ''}</div>`).join('')}
+                            ${hist.slice().reverse().map(h => `<div class="bg-white p-5 rounded-[2rem] border border-[#F5E6D3] shadow-sm"><div class="flex justify-between items-start mb-3"><div><span class="text-xs font-black block text-gray-700">${h.date}</span><span class="text-[9px] text-[#C4B19E]">${h.location}</span></div><span class="text-xl font-black ${h.amount >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${h.amount > 0 ? '+' : ''}${h.amount}</span></div><div class="flex items-center gap-2 mb-3 bg-[#FBF8F5] py-2 px-3 rounded-xl"><i data-lucide="users" class="w-3 text-[#8C7355]"></i><span class="text-[10px] text-gray-600 font-medium">${h.opponents.join('、')}</span></div><div class="flex gap-2 border-t border-dashed border-[#F5E6D3] pt-3"><span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.rounds} 將</span><span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.stakes || DEFAULT_STAKES}</span></div>${h.note ? `<div class="mt-3 p-3 bg-[#F0EAD6]/30 rounded-2xl border-l-4 border-[#8C7355] text-[10px] italic">「 ${h.note} 」</div>` : ''}</div>`).join('')}
                         </div>
                     </div>
                 `;
@@ -373,7 +374,7 @@
         window.openModal = (dateStr) => {
             state.selectedDateStr = dateStr;
             const exist = state.allSessions.filter(s => s.date === dateStr);
-            state.editingSessions = exist.length > 0 ? JSON.parse(JSON.stringify(exist)) : [{ id: "new_" + Date.now(), date: dateStr, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }];
+            state.editingSessions = exist.length > 0 ? JSON.parse(JSON.stringify(exist)) : [{ id: "new_" + Date.now(), date: dateStr, stakes: DEFAULT_STAKES, location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }];
             renderModal(); document.getElementById('modal-root').classList.remove('hidden');
         };
 
@@ -385,8 +386,11 @@
             const sum = {}; state.editingSessions.forEach(s => s.players.forEach(p => { const n = p.name.trim(); if (!n) return; if (!sum[n]) sum[n] = { net: 0 }; sum[n].net += Number(p.amount); }));
             modal.innerHTML = `
                 <div class="p-6 border-b border-[#F5E6D3] flex justify-between items-center bg-white shadow-sm">
-                    <div class="flex items-center gap-3"><div class="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><i data-lucide="calendar-days" class="w-5"></i></div><h3 class="text-xl font-black">${state.selectedDateStr} 管理</h3></div>
-                    <div class="flex gap-2"><button onclick="addSessionToEdit()" class="bg-[#A67B5B] text-white w-10 h-10 flex items-center justify-center rounded-xl shadow-md active:scale-95 font-black text-2xl">+</button><button onclick="closeModal()" class="bg-[#F5E6D3] p-2 rounded-full text-[#8C7355] shadow-sm"><i data-lucide="x" class="w-5"></i></button></div>
+                    <div class="flex items-center gap-3"><div class="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><i data-lucide="calendar-days" class="w-5"></i></div><h3 class="text-xl font-black text-[#4A3728]">${state.selectedDateStr} 管理</h3></div>
+                    <div class="flex gap-2">
+                        <button onclick="addSessionToEdit()" class="bg-[#A67B5B] text-white w-10 h-10 flex items-center justify-center rounded-xl shadow-md active:scale-95 font-black text-2xl">+</button>
+                        <button onclick="closeModal()" class="bg-[#F5E6D3] p-2 rounded-full text-[#8C7355] shadow-sm"><i data-lucide="x" class="w-5"></i></button>
+                    </div>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-6 bg-[#FBF8F5] no-scrollbar">
                     <div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/20 shadow-sm">
@@ -397,9 +401,26 @@
                         const bal = s.players.reduce((a, b) => a + (Number(b.amount) || 0), 0);
                         return `<div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/30 relative shadow-sm">
                             <button onclick="deleteSessionImmediate('${s.id}')" class="absolute -top-3 -right-3 bg-white text-rose-500 p-2.5 rounded-full shadow-lg border border-rose-100 active:scale-90"><i data-lucide="trash-2" class="w-4"></i></button>
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"><div class="col-span-2"><label class="text-[10px] font-black text-[#C4B19E] block uppercase">日期</label><input type="date" value="${s.date}" onchange="updateSession(${idx}, 'date', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner"></div><div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">底/台</label><input type="text" value="${s.stakes}" onchange="updateSession(${idx}, 'stakes', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner"></div><div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">將數</label><input type="number" value="${s.rounds}" onchange="updateSession(${idx}, 'rounds', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner"></div></div>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div class="col-span-2 md:col-span-1"><label class="text-[10px] font-black text-[#C4B19E] block uppercase">日期</label><input type="date" value="${s.date}" onchange="updateSession(${idx}, 'date', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner"></div>
+                                <div class="col-span-2 md:col-span-1"><label class="text-[10px] font-black text-[#C4B19E] block uppercase">地點</label><input type="text" value="${s.location}" onchange="updateSession(${idx}, 'location', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner" placeholder="在哪打？"></div>
+                                <div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">底/台</label><input type="text" value="${s.stakes}" onchange="updateSession(${idx}, 'stakes', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner"></div>
+                                <div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">將數</label><input type="number" value="${s.rounds}" onchange="updateSession(${idx}, 'rounds', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner"></div>
+                            </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">${s.players.map((p, pIdx) => `<div class="flex items-center gap-2 p-3 rounded-2xl border-2 ${pIdx < 2 ? 'bg-[#F5E6D3]/10 border-[#F5E6D3]/50' : 'bg-[#FBF8F5] border-transparent shadow-inner'}"><input type="text" value="${p.name}" onchange="updatePlayer(${idx}, ${pIdx}, 'name', this.value)" class="flex-1 bg-transparent border-none text-xs font-black outline-none"><div class="bg-white px-3 py-1.5 rounded-xl border border-gray-100 flex items-center shadow-sm"><span class="text-[10px] text-[#C4B19E] mr-1">$</span><input type="number" value="${p.amount}" onchange="updatePlayer(${idx}, ${pIdx}, 'amount', this.value)" class="w-16 bg-transparent border-none text-right font-black text-xs outline-none"></div></div>`).join('')}</div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#F5E6D3] pt-4 mt-2"><div class="space-y-2"><label class="text-[10px] font-black text-[#8C7355] uppercase flex items-center gap-2"><i data-lucide="message-square" class="w-3"></i> 筆記</label><textarea onchange="updateSession(${idx}, 'note', this.value)" class="w-full bg-[#F5E6D3]/20 border-2 border-dashed border-[#F5E6D3] rounded-2xl p-4 text-[11px] font-medium resize-none h-20 outline-none">${s.note}</textarea></div><div class="flex flex-col justify-end gap-3"><div class="p-2 bg-[#FBF8F5] rounded-xl border border-[#F5E6D3]"><label class="text-[9px] font-black text-[#C4B19E] block mb-1">地點</label><input type="text" value="${s.location}" onchange="updateSession(${idx}, 'location', this.value)" class="w-full bg-transparent border-none p-0 text-xs font-black outline-none" placeholder="未填寫"></div><div class="px-6 py-2.5 rounded-full inline-flex items-center gap-2 text-[10px] font-black ${bal === 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-500 border border-rose-100'}"><i data-lucide="${bal === 0 ? 'check-circle-2' : 'alert-circle'}" class="w-3"></i><span>核算：${bal}</span></div></div></div>
+                            
+                            <div class="flex items-center justify-between mt-4 pt-4 border-t border-[#F5E6D3]">
+                                <div class="flex items-center gap-4">
+                                    <div class="px-6 py-2 rounded-full inline-flex items-center gap-2 text-[10px] font-black ${bal === 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-500 border border-rose-100'}"><i data-lucide="${bal === 0 ? 'check-circle-2' : 'alert-circle'}" class="w-3"></i><span>核算：${bal}</span></div>
+                                    ${!s.note ? `<button onclick="updateSession(${idx}, 'note', ' ')" class="text-[10px] font-black text-[#8C7355] flex items-center gap-1 hover:underline"><i data-lucide="plus-circle" class="w-3"></i> 新增筆記</button>` : ''}
+                                </div>
+                            </div>
+
+                            ${s.note ? `
+                            <div class="mt-4 animate-in">
+                                <div class="flex items-center justify-between mb-1"><label class="text-[10px] font-black text-[#8C7355] uppercase flex items-center gap-2"><i data-lucide="message-square" class="w-3"></i> 筆記內容</label><button onclick="updateSession(${idx}, 'note', '')" class="text-[10px] text-rose-400 font-bold">移除</button></div>
+                                <textarea onchange="updateSession(${idx}, 'note', this.value)" class="w-full bg-[#F5E6D3]/20 border-2 border-dashed border-[#F5E6D3] rounded-2xl p-4 text-[11px] font-medium resize-none h-20 outline-none">${s.note.trim()}</textarea>
+                            </div>` : ''}
                         </div>`;
                     }).join('')}
                 </div>
@@ -410,7 +431,7 @@
 
         window.updateSession = (i, k, v) => { state.editingSessions[i][k] = v; renderModal(); };
         window.updatePlayer = (i, pi, k, v) => { state.editingSessions[i].players[pi][k] = v; renderModal(); };
-        window.addSessionToEdit = () => { state.editingSessions.push({ id: "new_" + Date.now(), date: state.selectedDateStr, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }); renderModal(); };
+        window.addSessionToEdit = () => { state.editingSessions.push({ id: "new_" + Date.now(), date: state.selectedDateStr, stakes: DEFAULT_STAKES, location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }); renderModal(); };
 
         window.deleteSessionImmediate = async (id) => {
             if (state.allSessions.some(s => s.id === id) && !confirm("確定永久刪除？")) return;
@@ -453,7 +474,7 @@
         window.exportData = () => {
             const b = new Blob([JSON.stringify(state.allSessions, null, 2)], { type: 'application/json' });
             const u = URL.createObjectURL(b); const a = document.createElement('a');
-            a.href = u; a.download = `mahjong_2026.json`; a.click(); URL.revokeObjectURL(u);
+            a.href = u; a.download = `mahjong_diary_2026.json`; a.click(); URL.revokeObjectURL(u);
         };
 
         window.importTrigger = () => document.getElementById('file-input').click();
