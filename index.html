@@ -6,7 +6,7 @@
     <title>2026 麻將日誌</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
+    <!-- Lucide 圖示 -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -16,35 +16,28 @@
             color: #4A3728;
             -webkit-tap-highlight-color: transparent;
         }
-        .animate-in {
-            animation: fadeIn 0.5s ease-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .modal-overlay {
-            background-color: rgba(74, 55, 40, 0.6);
-            backdrop-filter: blur(4px);
-        }
-        /* 隱藏捲軸但保持功能 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .animate-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="pb-32 overflow-x-hidden">
 
     <div id="app" class="max-w-3xl mx-auto p-4">
-        <!-- 載入中畫面 -->
-        <div id="loading-screen" class="fixed inset-0 z-[2000] bg-[#F5E6D3] flex flex-col items-center justify-center gap-4">
+        <!-- 載入中遮罩 -->
+        <div id="loading-overlay" class="fixed inset-0 z-[2000] bg-[#F5E6D3] flex flex-col items-center justify-center gap-4">
             <div class="w-12 h-12 border-4 border-[#8C7355] border-t-transparent rounded-full animate-spin"></div>
-            <p class="font-black text-[#8C7355] tracking-widest" id="loading-text">載入紀錄中...</p>
+            <p id="loading-text" class="font-black text-[#8C7355] tracking-widest">初始化連線中...</p>
         </div>
 
-        <!-- Header -->
+        <!-- 頂部導覽 -->
         <header class="relative flex items-center justify-center h-16 mb-8 pt-4">
             <div class="absolute left-0">
-                <button onclick="handleRestore()" class="w-10 h-10 flex items-center justify-center bg-white text-[#8C7355] border border-[#E6D5C3] rounded-full shadow-sm hover:bg-[#F5E6D3] transition-all active:scale-90" title="返回上一步紀錄">
+                <button onclick="handleRestore()" class="w-10 h-10 flex items-center justify-center bg-white text-[#8C7355] border border-[#E6D5C3] rounded-full shadow-sm hover:bg-[#F5E6D3] transition-all active:scale-90" title="還原備份">
                     <i data-lucide="rotate-ccw" class="w-[18px]"></i>
                 </button>
             </div>
@@ -53,20 +46,20 @@
                 <h1 class="text-base font-black text-[#4A3728] whitespace-nowrap tracking-tight">2026 麻將日誌</h1>
             </div>
             <div class="absolute right-0">
-                <button onclick="openToday()" class="w-10 h-10 flex items-center justify-center bg-[#8C7355] text-white rounded-full shadow-lg transition-all active:scale-90" title="快速新增紀錄">
+                <button onclick="openToday()" class="w-10 h-10 flex items-center justify-center bg-[#8C7355] text-white rounded-full shadow-lg transition-all active:scale-90" title="新增紀錄">
                     <i data-lucide="plus" class="w-[18px]" style="stroke-width: 3px;"></i>
                 </button>
             </div>
         </header>
 
-        <!-- 主視圖容器 -->
-        <main id="main-content" class="animate-in"></main>
+        <!-- 主要內容區 -->
+        <main id="view-container" class="animate-in"></main>
 
         <!-- 底部導覽列 -->
         <nav class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-6 py-4 rounded-full shadow-2xl border border-[#E6D5C3] flex gap-8 z-40">
             <button onclick="switchView('home')" id="nav-home" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
                 <i data-lucide="home" class="w-[22px]"></i>
-                <span class="text-[9px] font-black uppercase">統計</span>
+                <span class="text-[9px] font-black uppercase">總覽</span>
             </button>
             <button onclick="switchView('calendar')" id="nav-calendar" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
                 <i data-lucide="calendar" class="w-[22px]"></i>
@@ -83,22 +76,23 @@
         </nav>
     </div>
 
-    <!-- Modal 容器 -->
-    <div id="modal-container" class="hidden fixed inset-0 z-[1000] modal-overlay flex items-center justify-center p-0 md:p-6 animate-in">
-        <!-- Modal 內容會由 JS 動態生成 -->
+    <!-- 彈窗 Modal -->
+    <div id="modal-root" class="hidden fixed inset-0 z-[1000] bg-[#4A3728]/60 backdrop-blur-sm flex items-center justify-center p-0 md:p-6 animate-in">
+        <div id="modal-content" class="bg-[#FFFDFB] w-full max-w-4xl h-full md:h-auto md:max-h-[90vh] md:rounded-[3.5rem] flex flex-col overflow-hidden shadow-2xl border-t-[12px] border-[#8C7355]">
+        </div>
     </div>
 
-    <!-- 自定義訊息盒 -->
-    <div id="toast" class="hidden fixed top-10 left-1/2 -translate-x-1/2 z-[3000] bg-[#4A3728] text-white px-6 py-3 rounded-full shadow-2xl font-bold transition-all"></div>
+    <!-- Toast -->
+    <div id="toast" class="hidden fixed top-10 left-1/2 -translate-x-1/2 z-[3000] bg-[#4A3728] text-white px-8 py-3 rounded-full shadow-2xl font-bold transition-all"></div>
 
-    <!-- 靜態檔案輸入框 -->
+    <!-- 檔案輸入 -->
     <input type="file" id="file-input" class="hidden" accept=".json">
 
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, collection, onSnapshot, setDoc, deleteDoc, getDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, collection, onSnapshot, setDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
         // --- Firebase 配置 ---
         const firebaseConfig = {
@@ -114,6 +108,7 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const analytics = getAnalytics(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'mahjong-2026-v2';
 
         // --- 全域狀態 ---
@@ -129,75 +124,58 @@
             selectedDateStr: '',
             reportMonth: 'total',
             detailMonth: 'total',
-            isModalOpen: false,
-            saving: false
+            isModalOpen: false
         };
 
         const NAME_1 = "肅佩";
         const NAME_2 = "泓翰";
         const monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
 
-        // --- 初始化認證 (修復：處理 Custom Token Mismatch 錯誤) ---
+        // --- 驗證與監聽 ---
         async function initAuth() {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     try {
-                        // 嘗試使用提供的自定義令牌
                         await signInWithCustomToken(auth, __initial_auth_token);
-                    } catch (tokenError) {
-                        // 如果令牌不匹配 (auth/custom-token-mismatch) 或失效，自動回退到匿名登入
-                        console.warn("Custom token sign-in failed, falling back to anonymous:", tokenError);
+                    } catch (e) {
                         await signInAnonymously(auth);
                     }
                 } else {
                     await signInAnonymously(auth);
                 }
             } catch (e) {
-                console.error("Auth Error", e);
-                showToast("登入連線失敗");
+                console.error("Auth Failed", e);
             }
         }
 
-        // 監聽認證狀態
         onAuthStateChanged(auth, (user) => {
             state.user = user;
             if (user) {
-                setupListeners();
+                const sessionsCol = collection(db, 'artifacts', appId, 'public', 'data', 'sessions');
+                onSnapshot(sessionsCol, (snapshot) => {
+                    const data = [];
+                    snapshot.forEach(docSnap => {
+                        if (!state.deletedIds.has(docSnap.id)) {
+                            data.push({ id: docSnap.id, ...docSnap.data() });
+                        }
+                    });
+                    data.sort((a, b) => b.date.localeCompare(a.date));
+                    state.allSessions = data;
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                    render();
+                });
+
+                const memoDoc = doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo');
+                onSnapshot(memoDoc, (docSnap) => {
+                    if (docSnap.exists()) state.memoData = docSnap.data().content;
+                    if (state.view === 'memo') render();
+                });
             }
         });
 
-        // --- 資料監聽 (RULE 3: 認證後執行) ---
-        function setupListeners() {
-            if (!state.user) return;
-
-            const sessionsCol = collection(db, 'artifacts', appId, 'public', 'data', 'sessions');
-            onSnapshot(sessionsCol, (snapshot) => {
-                const data = [];
-                snapshot.forEach(docSnap => {
-                    const id = docSnap.id;
-                    if (state.deletedIds.has(id)) return;
-                    data.push({ id, ...docSnap.data() });
-                });
-                data.sort((a, b) => b.date.localeCompare(a.date));
-                state.allSessions = data;
-                document.getElementById('loading-screen').classList.add('hidden');
-                render();
-            }, (err) => {
-                console.error("Firestore Snapshot Error", err);
-                showToast("資料同步錯誤");
-            });
-
-            const memoDoc = doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo');
-            onSnapshot(memoDoc, (docSnap) => {
-                if (docSnap.exists()) state.memoData = docSnap.data().content;
-                if (state.view === 'memo') render();
-            }, (err) => console.error("Memo Snapshot Error", err));
-        }
-
-        // --- 工具函數 ---
+        // --- UI 工具 ---
         window.showToast = (msg) => {
             const t = document.getElementById('toast');
-            if (!t) return;
             t.textContent = msg;
             t.classList.remove('hidden');
             setTimeout(() => t.classList.add('hidden'), 3000);
@@ -208,7 +186,6 @@
             state.allSessions.forEach(session => {
                 const month = session.date.split('-')[1];
                 const opponentNames = session.players.map(p => p.name.trim()).filter(n => n);
-                
                 session.players.forEach(p => {
                     const name = p.name.trim();
                     if (!name) return;
@@ -238,63 +215,49 @@
             return players;
         }
 
-        // --- 視圖切換 ---
-        window.switchView = (newView) => {
-            state.view = newView;
-            if (newView !== 'report') state.selectedPlayer = null;
+        window.switchView = (v) => {
+            state.view = v;
+            if (v !== 'report') state.selectedPlayer = null;
             render();
         };
 
-        // --- 渲染邏輯 ---
         function render() {
-            const main = document.getElementById('main-content');
-            if (!main) return;
-            main.innerHTML = '';
-            
-            // 更新導覽列狀態
+            const container = document.getElementById('view-container');
+            container.innerHTML = '';
             ['home', 'calendar', 'report', 'memo'].forEach(id => {
-                const navBtn = document.getElementById(`nav-${id}`);
-                if (!navBtn) return;
-                if (state.view === id) {
-                    navBtn.classList.add('text-[#8C7355]', 'scale-110');
-                    navBtn.classList.remove('text-[#D9C5B2]');
-                } else {
-                    navBtn.classList.remove('text-[#8C7355]', 'scale-110');
-                    navBtn.classList.add('text-[#D9C5B2]');
-                }
+                const btn = document.getElementById(`nav-${id}`);
+                if (state.view === id) { btn.classList.add('text-[#8C7355]', 'scale-110'); btn.classList.remove('text-[#D9C5B2]'); }
+                else { btn.classList.remove('text-[#8C7355]', 'scale-110'); btn.classList.add('text-[#D9C5B2]'); }
             });
-
-            if (state.view === 'home') renderHome(main);
-            else if (state.view === 'calendar') renderCalendar(main);
-            else if (state.view === 'report') renderReport(main);
-            else if (state.view === 'memo') renderMemo(main);
-
+            if (state.view === 'home') renderHome(container);
+            else if (state.view === 'calendar') renderCalendar(container);
+            else if (state.view === 'report') renderReport(container);
+            else if (state.view === 'memo') renderMemo(container);
             lucide.createIcons();
         }
 
         function renderHome(container) {
-            const players = calculateStats();
-            const p1 = players[NAME_1] || { win: 0, loss: 0, net: 0, sessions: 0, rounds: 0 };
-            const p2 = players[NAME_2] || { win: 0, loss: 0, net: 0, sessions: 0, rounds: 0 };
+            const stats = calculateStats();
+            const p1 = stats[NAME_1] || { net: 0, win: 0, loss: 0, sessions: 0, rounds: 0 };
+            const p2 = stats[NAME_2] || { net: 0, win: 0, loss: 0, sessions: 0, rounds: 0 };
             const familyNet = p1.net + p2.net;
-
             container.innerHTML = `
                 <div class="space-y-6">
-                    <div class="bg-[#8C7355] rounded-[3rem] p-10 text-white shadow-xl flex flex-col items-center text-center relative overflow-hidden group">
-                        <div class="absolute top-0 right-0 p-6 opacity-10"><i data-lucide="heart" class="w-[100px] h-[100px]" fill="white"></i></div>
+                    <div class="bg-[#8C7355] rounded-[3rem] p-10 text-white shadow-xl flex flex-col items-center text-center relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-6 opacity-10"><i data-lucide="heart" class="w-24 h-24" fill="white"></i></div>
                         <p class="text-[10px] font-black tracking-widest opacity-60 mb-2 uppercase">Family 2026 Balance</p>
                         <h2 class="text-5xl font-black mb-4 tracking-tighter">${familyNet >= 0 ? '+' : ''}$${familyNet}</h2>
-                        <div class="bg-white/20 px-5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2"><i data-lucide="check-circle-2" class="w-3"></i> 雲端數據同步中</div>
+                        <div class="bg-white/20 px-5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2"><i data-lucide="check-circle-2" class="w-3"></i> 雲端數據已同步</div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         ${[NAME_1, NAME_2].map(name => {
-                            const d = players[name] || { win: 0, loss: 0, net: 0, sessions: 0, rounds: 0 };
+                            const d = stats[name] || { net: 0, win: 0, loss: 0, sessions: 0, rounds: 0 };
                             return `
-                                <div onclick="state.selectedPlayer='${name}'; switchView('report');" class="bg-white rounded-[2.5rem] p-8 shadow-sm border-b-8 border-[#E6D5C3] cursor-pointer hover:translate-y-[-2px] transition-all active:scale-95">
+                                <div onclick="state.selectedPlayer='${name}'; switchView('report')" class="bg-white rounded-[2.5rem] p-8 shadow-sm border-b-8 border-[#E6D5C3] cursor-pointer hover:-translate-y-1 transition-all active:scale-95">
                                     <div class="flex items-start justify-between mb-6">
                                         <div class="flex items-center gap-3 pt-1">
-                                            <div class="p-2.5 bg-[#F5E6D3] text-[#8C7355] rounded-2xl shadow-inner"><i data-lucide="user" class="w-[22px]"></i></div>
-                                            <div><span class="font-black text-xl text-[#4A3728] block">${name}</span><span class="text-[10px] text-[#C4B19E] font-bold">年度表現</span></div>
+                                            <div class="p-2.5 bg-[#F5E6D3] text-[#8C7355] rounded-2xl shadow-inner"><i data-lucide="user" class="w-5"></i></div>
+                                            <div><span class="font-black text-xl text-[#4A3728] block">${name}</span><span class="text-[10px] text-[#C4B19E] font-bold uppercase">年度表現</span></div>
                                         </div>
                                         <div class="text-right">
                                             <span class="text-[10px] font-black text-[#C4B19E] uppercase block mb-1">總盈虧</span>
@@ -318,42 +281,32 @@
         }
 
         function renderCalendar(container) {
-            const year = state.currentDate.getFullYear();
-            const month = state.currentDate.getMonth();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const firstDay = new Date(year, month, 1).getDay();
-
-            let calendarGrid = '';
-            for (let i = 0; i < firstDay; i++) calendarGrid += '<div class="h-24"></div>';
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                const sessions = state.allSessions.filter(s => s.date === dateKey);
-                const n1 = sessions.reduce((a, s) => a + (Number(s.players.find(p => p.name === NAME_1)?.amount) || 0), 0);
-                const n2 = sessions.reduce((a, s) => a + (Number(s.players.find(p => p.name === NAME_2)?.amount) || 0), 0);
-
-                calendarGrid += `
-                    <div onclick="openModal('${dateKey}')" class="h-24 border border-[#F5E6D3]/50 rounded-xl p-1 cursor-pointer transition-all active:scale-95 ${sessions.length > 0 ? 'bg-white ring-1 ring-[#8C7355]/20 shadow-sm' : 'bg-white/30 hover:bg-[#F5E6D3]/20'}">
+            const y = state.currentDate.getFullYear(); const m = state.currentDate.getMonth();
+            const dim = new Date(y, m + 1, 0).getDate(); const fd = new Date(y, m, 1).getDay();
+            let gridHTML = '';
+            for (let i = 0; i < fd; i++) gridHTML += '<div class="h-24"></div>';
+            for (let d = 1; d <= dim; d++) {
+                const dk = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const sess = state.allSessions.filter(s => s.date === dk);
+                const n1 = sess.reduce((a, s) => a + (Number(s.players.find(p => p.name === NAME_1)?.amount) || 0), 0);
+                const n2 = sess.reduce((a, s) => a + (Number(s.players.find(p => p.name === NAME_2)?.amount) || 0), 0);
+                gridHTML += `
+                    <div onclick="openModal('${dk}')" class="h-24 border border-[#F5E6D3]/50 rounded-xl p-1 cursor-pointer transition-all active:scale-95 ${sess.length > 0 ? 'bg-white ring-1 ring-[#8C7355]/20 shadow-sm' : 'bg-white/30 hover:bg-[#F5E6D3]/20'}">
                         <span class="text-[10px] font-black text-[#C4B19E]">${d}</span>
-                        ${sessions.length > 0 ? `
-                            <div class="mt-1 space-y-0.5">
-                                <div class="text-[7px] p-0.5 rounded scale-90 origin-left ${n1 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>佩</span> <span>${n1}</span></div>
-                                <div class="text-[7px] p-0.5 rounded scale-90 origin-left ${n2 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>翰</span> <span>${n2}</span></div>
-                            </div>
-                        ` : ''}
+                        ${sess.length > 0 ? `<div class="mt-1 space-y-0.5 overflow-hidden"><div class="text-[7px] p-0.5 rounded truncate scale-90 origin-left ${n1 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>佩</span> <span>${n1}</span></div><div class="text-[7px] p-0.5 rounded truncate scale-90 origin-left ${n2 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>翰</span> <span>${n2}</span></div></div>` : ''}
                     </div>
                 `;
             }
-
             container.innerHTML = `
                 <div class="bg-[#FFFDFB] rounded-[2.5rem] p-6 border-8 border-white shadow-sm">
                     <div class="flex items-center justify-between mb-8">
                         <button onclick="changeMonth(-1)" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="chevron-left" class="w-5"></i></button>
-                        <div class="text-center"><h2 class="text-lg font-black">${monthNames[month]}</h2><p class="text-[9px] font-black text-[#C4B19E]">2026 CALENDAR</p></div>
+                        <div class="text-center"><h2 class="text-lg font-black">${monthNames[m]}</h2><p class="text-[9px] font-black text-[#C4B19E]">2026 CALENDAR</p></div>
                         <button onclick="changeMonth(1)" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="chevron-right" class="w-5"></i></button>
                     </div>
                     <div class="grid grid-cols-7 gap-1">
                         ${['日', '一', '二', '三', '四', '五', '六'].map(d => `<div class="text-center text-[10px] font-black text-[#C4B19E] mb-2 uppercase">${d}</div>`).join('')}
-                        ${calendarGrid}
+                        ${gridHTML}
                     </div>
                 </div>
                 <div class="flex gap-3 px-2 mt-4">
@@ -363,78 +316,38 @@
             `;
         }
 
-        window.changeMonth = (delta) => {
-            state.currentDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() + delta, 1);
-            render();
-        };
+        window.changeMonth = (delta) => { state.currentDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() + delta, 1); render(); };
 
         function renderReport(container) {
-            const players = calculateStats();
+            const stats = calculateStats();
             if (state.selectedPlayer) {
-                const p = players[state.selectedPlayer];
-                const history = p.history.filter(h => state.detailMonth === 'total' || h.month === state.detailMonth);
-                const stats = history.reduce((acc, curr) => {
-                    acc.sessions++; acc.rounds += Number(curr.rounds); acc.net += curr.amount;
-                    if (curr.amount > 0) acc.wins++; return acc;
-                }, { sessions: 0, rounds: 0, net: 0, wins: 0 });
-
+                const p = stats[state.selectedPlayer];
+                const hist = p.history.filter(h => state.detailMonth === 'total' || h.month === state.detailMonth);
+                const s = hist.reduce((acc, curr) => { acc.sess++; acc.rds += Number(curr.rounds); acc.net += curr.amount; if (curr.amount > 0) acc.wins++; return acc; }, { sess: 0, rds: 0, net: 0, wins: 0 });
                 container.innerHTML = `
                     <div class="bg-[#FFFDFB] rounded-[2.5rem] p-6 border-8 border-white shadow-sm min-h-[60vh]">
                         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-                            <div class="flex items-center gap-4"><button onclick="state.selectedPlayer=null; render();" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="arrow-left" class="w-5"></i></button><div><h2 class="text-xl font-black">${state.selectedPlayer}</h2><p class="text-[10px] font-bold text-[#C4B19E]">Personal Report</p></div></div>
-                            <select onchange="state.detailMonth=this.value; render();" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-4 py-2 text-[#8C7355] outline-none">
-                                <option value="total">全年度</option>
-                                ${monthNames.map((m, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${state.detailMonth === String(i + 1).padStart(2, '0') ? 'selected' : ''}>${m}</option>`).join('')}
-                            </select>
+                            <div class="flex items-center gap-4"><button onclick="state.selectedPlayer=null; render()" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="arrow-left" class="w-5"></i></button><div><h2 class="text-xl font-black">${state.selectedPlayer}</h2><p class="text-[10px] font-bold text-[#C4B19E]">Personal Analysis</p></div></div>
+                            <select onchange="state.detailMonth=this.value; render()" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-4 py-2 text-[#8C7355] border-none outline-none cursor-pointer"><option value="total">全年度</option>${monthNames.map((m, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${state.detailMonth === String(i + 1).padStart(2, '0') ? 'selected' : ''}>${m}</option>`).join('')}</select>
                         </div>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 text-center">
-                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30"><p class="text-[8px] font-bold text-[#C4B19E]">場數</p><p class="text-xl font-black text-[#8C7355]">${stats.sessions}</p></div>
-                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30"><p class="text-[8px] font-bold text-[#C4B19E]">勝率</p><p class="text-xl font-black text-[#8C7355]">${stats.sessions > 0 ? (stats.wins / stats.sessions * 100).toFixed(1) : 0}%</p></div>
-                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30"><p class="text-[8px] font-bold text-[#C4B19E]">將數</p><p class="text-xl font-black text-[#8C7355]">${stats.rounds}</p></div>
-                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30"><p class="text-[8px] font-bold text-[#C4B19E]">盈虧</p><p class="text-xl font-black ${stats.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${stats.net}</p></div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30 text-center"><p class="text-[8px] font-bold text-[#C4B19E]">場數</p><p class="text-xl font-black text-[#8C7355]">${s.sess}</p></div>
+                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30 text-center"><p class="text-[8px] font-bold text-[#C4B19E]">勝率</p><p class="text-xl font-black text-[#8C7355]">${s.sess > 0 ? (s.wins/s.sess*100).toFixed(1) : 0}%</p></div>
+                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30 text-center"><p class="text-[8px] font-bold text-[#C4B19E]">將數</p><p class="text-xl font-black text-[#8C7355]">${s.rds}</p></div>
+                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30 text-center"><p class="text-[8px] font-bold text-[#C4B19E]">淨盈虧</p><p class="text-xl font-black ${s.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${s.net}</p></div>
                         </div>
                         <div class="space-y-4">
-                            ${history.slice().reverse().map(h => `
-                                <div class="bg-white p-5 rounded-[2rem] border border-[#F5E6D3] shadow-sm">
-                                    <div class="flex justify-between mb-3"><div><span class="text-xs font-black block">${h.date}</span><span class="text-[9px] text-[#C4B19E]">${h.location}</span></div><span class="text-xl font-black ${h.amount >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${h.amount > 0 ? '+' : ''}${h.amount}</span></div>
-                                    <div class="flex items-center gap-2 mb-3 bg-[#FBF8F5] py-2 px-3 rounded-xl"><i data-lucide="users" class="w-3 text-[#8C7355]"></i><span class="text-[10px] text-gray-600 font-medium">${h.opponents.join('、')}</span></div>
-                                    <div class="flex gap-2"><span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.rounds} 將</span><span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.stakes}</span></div>
-                                    ${h.note ? `<div class="mt-3 p-3 bg-[#F0EAD6]/30 rounded-2xl border-l-4 border-[#8C7355] text-[10px] italic">「 ${h.note} 」</div>` : ''}
-                                </div>
-                            `).join('')}
+                            ${hist.slice().reverse().map(h => `<div class="bg-white p-5 rounded-[2rem] border border-[#F5E6D3] shadow-sm"><div class="flex justify-between items-start mb-3"><div><span class="text-xs font-black block text-gray-700">${h.date}</span><span class="text-[9px] text-[#C4B19E]">${h.location}</span></div><span class="text-xl font-black ${h.amount >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${h.amount > 0 ? '+' : ''}${h.amount}</span></div><div class="flex items-center gap-2 mb-3 bg-[#FBF8F5] py-2 px-3 rounded-xl"><i data-lucide="users" class="w-3 text-[#8C7355]"></i><span class="text-[10px] text-gray-600 font-medium">${h.opponents.join('、')}</span></div><div class="flex gap-2 border-t border-dashed border-[#F5E6D3] pt-3"><span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.rounds} 將</span><span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.stakes || '30/10'}</span></div>${h.note ? `<div class="mt-3 p-3 bg-[#F0EAD6]/30 rounded-2xl border-l-4 border-[#8C7355] text-[10px] italic">「 ${h.note} 」</div>` : ''}</div>`).join('')}
                         </div>
                     </div>
                 `;
             } else {
                 container.innerHTML = `
                     <div class="bg-[#FFFDFB] rounded-[3rem] p-8 border-8 border-white shadow-sm">
-                        <div class="flex justify-between items-center mb-8"><div><h2 class="text-xl font-black">2026 雀神排行</h2><p class="text-[10px] font-bold text-[#C4B19E] tracking-widest uppercase">Rankings</p></div>
-                            <select onchange="state.reportMonth=this.value; render();" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-4 py-2 text-[#8C7355] outline-none">
-                                <option value="total">全年度</option>
-                                ${monthNames.map((m, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${state.reportMonth === String(i + 1).padStart(2, '0') ? 'selected' : ''}>${m}</option>`).join('')}
-                            </select>
-                        </div>
+                        <div class="flex justify-between items-center mb-8"><div><h2 class="text-xl font-black">2026 雀神排行</h2><p class="text-[10px] font-bold text-[#C4B19E] tracking-widest uppercase">Leaderboard</p></div><select onchange="state.reportMonth=this.value; render()" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-4 py-2 text-[#8C7355] border-none outline-none cursor-pointer"><option value="total">年度總覽</option>${monthNames.map((m, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${state.reportMonth === String(i + 1).padStart(2, '0') ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
                         <div class="space-y-3">
-                            ${Object.entries(players).map(([name, data]) => ({ name, ...data }))
-                                .filter(p => state.reportMonth === 'total' || p.monthlySessions[state.reportMonth] > 0)
-                                .sort((a, b) => {
-                                    const valA = state.reportMonth === 'total' ? a.net : (a.monthly[state.reportMonth] || 0);
-                                    const valB = state.reportMonth === 'total' ? b.net : (b.monthly[state.reportMonth] || 0);
-                                    return valB - valA;
-                                }).map((p, idx) => {
-                                    const net = state.reportMonth === 'total' ? p.net : (p.monthly[state.reportMonth] || 0);
-                                    const sessions = state.reportMonth === 'total' ? p.sessions : (p.monthlySessions[state.reportMonth] || 0);
-                                    const wins = state.reportMonth === 'total' ? p.totalWins : (p.monthlyWins[state.reportMonth] || 0);
-                                    const winR = sessions > 0 ? (wins / sessions * 100) : 0;
-                                    return `
-                                        <div onclick="state.selectedPlayer='${p.name}'; render();" class="grid grid-cols-12 items-center px-4 py-5 rounded-[2rem] border-2 cursor-pointer transition-all active:scale-95 ${idx === 0 ? 'bg-[#F0EAD6]/40 border-[#8C7355]/20 shadow-sm' : 'bg-white border-transparent shadow-sm'}">
-                                            <div class="col-span-4 flex items-center gap-2"><div class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black ${idx === 0 ? 'bg-[#8C7355] text-white shadow-md' : 'bg-[#F5E6D3] text-[#8C7355]'}">${idx + 1}</div><span class="font-black text-xs truncate">${p.name}</span></div>
-                                            <div class="col-span-2 font-black text-[#C4B19E] text-xs">${sessions}</div>
-                                            <div class="col-span-3"><span class="text-[10px] font-black text-[#8C7355] px-1.5 py-0.5 bg-[#FBF8F5] rounded-lg border border-[#F5E6D3]">${winR.toFixed(1)}%</span></div>
-                                            <div class="col-span-3 text-right font-black text-sm ${net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${net > 0 ? '+' : ''}${net}</div>
-                                        </div>
-                                    `;
-                                }).join('')}
+                            <div class="grid grid-cols-12 px-4 py-2 text-[10px] font-black text-[#C4B19E] uppercase tracking-widest border-b border-[#F5E6D3] mb-2 text-center"><div class="col-span-4 text-left">玩家</div><div class="col-span-2">場數</div><div class="col-span-3">勝率</div><div class="col-span-3 text-right">盈虧</div></div>
+                            ${Object.entries(stats).map(([n, d]) => ({ name: n, ...d })).filter(p => state.reportMonth === 'total' || p.monthlySessions[state.reportMonth] > 0).sort((a, b) => { const vA = state.reportMonth === 'total' ? a.net : (a.monthly[state.reportMonth] || 0); const vB = state.reportMonth === 'total' ? b.net : (b.monthly[state.reportMonth] || 0); return vB - vA; }).map((p, idx) => { const net = state.reportMonth === 'total' ? p.net : (p.monthly[state.reportMonth] || 0); const sess = state.reportMonth === 'total' ? p.sessions : (p.monthlySessions[state.reportMonth] || 0); const wins = state.reportMonth === 'total' ? p.totalWins : (p.monthlyWins[state.reportMonth] || 0); const wr = sess > 0 ? (wins/sess*100).toFixed(1) : 0; return `<div onclick="state.selectedPlayer='${p.name}'; render()" class="grid grid-cols-12 items-center px-4 py-5 rounded-[2rem] border-2 cursor-pointer transition-all active:scale-95 ${idx === 0 ? 'bg-[#F0EAD6]/40 border-[#8C7355]/20 shadow-sm' : 'bg-white border-transparent shadow-sm'}"><div class="col-span-4 flex items-center gap-2"><div class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black ${idx === 0 ? 'bg-[#8C7355] text-white shadow-md' : 'bg-[#F5E6D3] text-[#8C7355]'}">${idx + 1}</div><span class="font-black text-xs truncate">${p.name}</span></div><div class="col-span-2 text-center text-xs font-black text-[#C4B19E]">${sess}</div><div class="col-span-3 text-center"><span class="text-[10px] font-black text-[#8C7355] px-1.5 py-0.5 bg-[#FBF8F5] rounded-lg border border-[#F5E6D3]">${wr}%</span></div><div class="col-span-3 text-right font-black text-sm ${net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${net > 0 ? '+' : ''}${net}</div></div>`; }).join('')}
                         </div>
                     </div>
                 `;
@@ -444,203 +357,118 @@
         function renderMemo(container) {
             container.innerHTML = `
                 <div class="bg-[#FFFDFB] rounded-[3rem] p-8 border-8 border-white shadow-sm min-h-[70vh] flex flex-col">
-                    <div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-black">備忘錄</h2><p class="text-[10px] font-bold text-[#C4B19E]">Rules & Notes</p></div><button onclick="saveMemo()" id="save-memo-btn" class="bg-[#8C7355] text-white px-6 py-2.5 rounded-full text-xs font-black shadow-lg flex items-center gap-2 active:scale-95 transition-all"><i data-lucide="save" class="w-4"></i> 儲存變更</button></div>
-                    <textarea id="memo-textarea" class="w-full flex-1 bg-[#FBF8F5] border-2 border-[#F5E6D3] rounded-[2rem] p-8 text-sm font-medium leading-relaxed outline-none resize-none focus:ring-2 focus:ring-[#8C7355]/20 shadow-inner" placeholder="在此輸入規則或筆記...">${state.memoData}</textarea>
+                    <div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-black">備忘錄</h2><p class="text-[10px] font-bold text-[#C4B19E] uppercase tracking-widest">Rules & Notes</p></div><button onclick="saveMemo()" id="memo-save-btn" class="bg-[#8C7355] text-white px-6 py-2.5 rounded-full text-xs font-black shadow-lg flex items-center gap-2 active:scale-95 transition-all"><i data-lucide="save" class="w-4"></i> 儲存變更</button></div>
+                    <textarea id="memo-input" class="w-full flex-1 bg-[#FBF8F5] border-2 border-[#F5E6D3] rounded-[2rem] p-8 text-sm font-medium leading-relaxed outline-none resize-none focus:ring-2 focus:ring-[#8C7355]/20 shadow-inner" placeholder="在此輸入規則或筆記...">${state.memoData}</textarea>
                 </div>
             `;
         }
 
-        // --- 核心操作 ---
         window.saveMemo = async () => {
-            if (!state.user) return;
-            const btn = document.getElementById('save-memo-btn');
-            const content = document.getElementById('memo-textarea').value;
-            btn.disabled = true; btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
-            try {
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo'), { content, updatedAt: Date.now() });
-                showToast("已儲存");
-            } catch (e) { showToast("儲存失敗"); }
-            btn.disabled = false; btn.innerHTML = '<i data-lucide="save" class="w-4"></i> 儲存變更';
-            lucide.createIcons();
+            const btn = document.getElementById('memo-save-btn'); const val = document.getElementById('memo-input').value;
+            btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="w-4 animate-spin"></i>';
+            try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo'), { content: val, updatedAt: Date.now() }); showToast("已儲存"); } catch (e) { showToast("儲存失敗"); }
+            btn.disabled = false; btn.innerHTML = '<i data-lucide="save" class="w-4"></i> 儲存變更'; lucide.createIcons();
         };
 
         window.openModal = (dateStr) => {
             state.selectedDateStr = dateStr;
-            const existing = state.allSessions.filter(s => s.date === dateStr);
-            state.editingSessions = existing.length > 0 ? JSON.parse(JSON.stringify(existing)) : [{
-                id: "new_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
-                date: dateStr, stakes: '30/10', location: '', rounds: 1, note: '',
-                players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }]
-            }];
-            state.isModalOpen = true;
-            renderModal();
+            const exist = state.allSessions.filter(s => s.date === dateStr);
+            state.editingSessions = exist.length > 0 ? JSON.parse(JSON.stringify(exist)) : [{ id: "new_" + Date.now(), date: dateStr, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }];
+            renderModal(); document.getElementById('modal-root').classList.remove('hidden');
         };
 
-        window.openToday = () => {
-            const today = new Date();
-            const dateStr = `2026-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-            openModal(dateStr);
-        };
-
-        window.closeModal = () => {
-            state.deletedIds.clear();
-            state.isModalOpen = false;
-            document.getElementById('modal-container').classList.add('hidden');
-        };
+        window.closeModal = () => { state.deletedIds.clear(); document.getElementById('modal-root').classList.add('hidden'); };
+        window.openToday = () => { const t = new Date(); openModal(`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`); };
 
         function renderModal() {
-            const modal = document.getElementById('modal-container');
-            if (!modal) return;
-            modal.classList.remove('hidden');
-            
-            const summary = {};
-            state.editingSessions.forEach(s => {
-                s.players.forEach(p => {
-                    const n = p.name.trim(); if (!n) return;
-                    if (!summary[n]) summary[n] = { net: 0 };
-                    summary[n].net += Number(p.amount);
-                });
-            });
-
+            const modal = document.getElementById('modal-content');
+            const sum = {}; state.editingSessions.forEach(s => s.players.forEach(p => { const n = p.name.trim(); if (!n) return; if (!sum[n]) sum[n] = { net: 0 }; sum[n].net += Number(p.amount); }));
             modal.innerHTML = `
-                <div class="bg-[#FFFDFB] w-full max-w-4xl h-full md:h-auto md:max-h-[90vh] md:rounded-[3.5rem] flex flex-col overflow-hidden shadow-2xl border-t-[12px] border-[#8C7355]">
-                    <div class="p-6 border-b border-[#F5E6D3] flex justify-between items-center bg-white shadow-sm">
-                        <div class="flex items-center gap-3"><div class="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><i data-lucide="calendar-days" class="w-5"></i></div><h3 class="text-xl font-black">${state.selectedDateStr} 管理</h3></div>
-                        <div class="flex gap-2"><button onclick="addSession()" class="bg-[#A67B5B] text-white w-10 h-10 flex items-center justify-center rounded-xl shadow-md font-black text-2xl">+</button><button onclick="closeModal()" class="bg-[#F5E6D3] p-2 rounded-full text-[#8C7355] shadow-sm"><i data-lucide="x" class="w-5"></i></button></div>
-                    </div>
-                    <div class="flex-1 overflow-y-auto p-4 space-y-6 bg-[#FBF8F5] no-scrollbar">
-                        <div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/20 shadow-sm">
-                            <h4 class="text-sm font-black text-[#8C7355] uppercase mb-4">今日戰績快報</h4>
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                ${Object.entries(summary).map(([name, data]) => `<div class="bg-[#FBF8F5] p-3 rounded-2xl border border-[#F5E6D3] text-center"><span class="text-[9px] font-black text-[#C4B19E] block">${name}</span><span class="text-sm font-black ${data.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${data.net > 0 ? '+' : ''}${data.net}</span></div>`).join('')}
-                            </div>
-                        </div>
-                        ${state.editingSessions.map((s, idx) => `
-                            <div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/30 relative shadow-sm">
-                                <button onclick="deleteSessionImmediate('${s.id}')" class="absolute -top-3 -right-3 bg-white text-rose-500 p-2.5 rounded-full shadow-lg border border-rose-100 active:scale-90"><i data-lucide="trash-2" class="w-[18px]"></i></button>
-                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                    <div class="col-span-2"><label class="text-[10px] font-black text-[#C4B19E] block uppercase">日期</label><input type="date" value="${s.date}" onchange="updateSession(${idx}, 'date', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black"></div>
-                                    <div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">底/台</label><input type="text" value="${s.stakes}" onchange="updateSession(${idx}, 'stakes', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black"></div>
-                                    <div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">將數</label><input type="number" value="${s.rounds}" onchange="updateSession(${idx}, 'rounds', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black"></div>
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                                    ${s.players.map((p, pIdx) => `
-                                        <div class="flex items-center gap-2 p-3 rounded-2xl border-2 ${pIdx < 2 ? 'bg-[#F5E6D3]/10 border-[#F5E6D3]/50' : 'bg-[#FBF8F5] border-transparent shadow-inner'}">
-                                            <input type="text" value="${p.name}" onchange="updatePlayer(${idx}, ${pIdx}, 'name', this.value)" class="flex-1 bg-transparent border-none text-xs font-black outline-none" placeholder="姓名">
-                                            <div class="bg-white px-3 py-1.5 rounded-xl border border-gray-100 flex items-center shadow-sm">
-                                                <span class="text-[10px] text-[#C4B19E] mr-1">$</span>
-                                                <input type="number" value="${p.amount}" onchange="updatePlayer(${idx}, ${pIdx}, 'amount', this.value)" class="w-16 bg-transparent border-none text-right font-black text-xs outline-none">
-                                            </div>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#F5E6D3] pt-4 mt-2">
-                                    <div class="space-y-2"><label class="text-[10px] font-black text-[#8C7355] uppercase flex items-center gap-2"><i data-lucide="message-square" class="w-3"></i> 筆記</label><textarea onchange="updateSession(${idx}, 'note', this.value)" class="w-full bg-[#F5E6D3]/20 border-2 border-dashed border-[#F5E6D3] rounded-2xl p-4 text-[11px] font-medium resize-none h-20 outline-none">${s.note}</textarea></div>
-                                    <div class="flex flex-col justify-end gap-3">
-                                        <div class="p-2 bg-[#FBF8F5] rounded-xl border border-[#F5E6D3]"><label class="text-[9px] font-black text-[#C4B19E] block uppercase">地點</label><input type="text" value="${s.location}" onchange="updateSession(${idx}, 'location', this.value)" class="w-full bg-transparent border-none p-0 text-xs font-black outline-none"></div>
-                                        <div class="px-6 py-2.5 rounded-full inline-flex items-center gap-2 text-[10px] font-black ${s.players.reduce((a, b) => a + Number(b.amount), 0) === 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-500 border border-rose-100'}"><i data-lucide="${s.players.reduce((a, b) => a + Number(b.amount), 0) === 0 ? 'check-circle-2' : 'alert-circle'}" class="w-[14px]"></i><span>核算：${s.players.reduce((a, b) => a + Number(b.amount), 0)}</span></div>
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <div class="p-4 bg-white border-t border-[#F5E6D3] shadow-lg">
-                        <button onclick="saveToCloud()" id="modal-save-btn" class="w-full py-4 bg-[#8C7355] text-white rounded-[2rem] font-black shadow-lg flex items-center justify-center gap-3 transition-all active:scale-[0.98] transform hover:translate-y-[-1px]"><i data-lucide="save" class="w-5"></i> 儲存變更</button>
-                    </div>
+                <div class="p-6 border-b border-[#F5E6D3] flex justify-between items-center bg-white shadow-sm">
+                    <div class="flex items-center gap-3"><div class="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><i data-lucide="calendar-days" class="w-5"></i></div><h3 class="text-xl font-black">${state.selectedDateStr} 管理</h3></div>
+                    <div class="flex gap-2"><button onclick="addSessionToEdit()" class="bg-[#A67B5B] text-white w-10 h-10 flex items-center justify-center rounded-xl shadow-md active:scale-95 font-black text-2xl">+</button><button onclick="closeModal()" class="bg-[#F5E6D3] p-2 rounded-full text-[#8C7355] shadow-sm"><i data-lucide="x" class="w-5"></i></button></div>
                 </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-6 bg-[#FBF8F5] no-scrollbar">
+                    <div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/20 shadow-sm">
+                        <div class="flex items-center gap-2 mb-4"><i data-lucide="pie-chart" class="w-4 text-[#8C7355]"></i><h4 class="text-sm font-black text-[#8C7355] uppercase tracking-wider">今日戰績快報</h4></div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${Object.entries(sum).map(([n, d]) => `<div class="bg-[#FBF8F5] p-3 rounded-2xl border border-[#F5E6D3] text-center"><span class="text-[9px] font-black text-[#C4B19E] block">${n}</span><span class="text-sm font-black ${d.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${d.net > 0 ? '+' : ''}${d.net}</span></div>`).join('')}</div>
+                    </div>
+                    ${state.editingSessions.map((s, idx) => {
+                        const bal = s.players.reduce((a, b) => a + (Number(b.amount) || 0), 0);
+                        return `<div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/30 relative shadow-sm">
+                            <button onclick="deleteSessionImmediate('${s.id}')" class="absolute -top-3 -right-3 bg-white text-rose-500 p-2.5 rounded-full shadow-lg border border-rose-100 active:scale-90"><i data-lucide="trash-2" class="w-4"></i></button>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"><div class="col-span-2"><label class="text-[10px] font-black text-[#C4B19E] block uppercase">日期</label><input type="date" value="${s.date}" onchange="updateSession(${idx}, 'date', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner"></div><div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">底/台</label><input type="text" value="${s.stakes}" onchange="updateSession(${idx}, 'stakes', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner"></div><div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">將數</label><input type="number" value="${s.rounds}" onchange="updateSession(${idx}, 'rounds', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner"></div></div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">${s.players.map((p, pIdx) => `<div class="flex items-center gap-2 p-3 rounded-2xl border-2 ${pIdx < 2 ? 'bg-[#F5E6D3]/10 border-[#F5E6D3]/50' : 'bg-[#FBF8F5] border-transparent shadow-inner'}"><input type="text" value="${p.name}" onchange="updatePlayer(${idx}, ${pIdx}, 'name', this.value)" class="flex-1 bg-transparent border-none text-xs font-black outline-none"><div class="bg-white px-3 py-1.5 rounded-xl border border-gray-100 flex items-center shadow-sm"><span class="text-[10px] text-[#C4B19E] mr-1">$</span><input type="number" value="${p.amount}" onchange="updatePlayer(${idx}, ${pIdx}, 'amount', this.value)" class="w-16 bg-transparent border-none text-right font-black text-xs outline-none"></div></div>`).join('')}</div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#F5E6D3] pt-4 mt-2"><div class="space-y-2"><label class="text-[10px] font-black text-[#8C7355] uppercase flex items-center gap-2"><i data-lucide="message-square" class="w-3"></i> 筆記</label><textarea onchange="updateSession(${idx}, 'note', this.value)" class="w-full bg-[#F5E6D3]/20 border-2 border-dashed border-[#F5E6D3] rounded-2xl p-4 text-[11px] font-medium resize-none h-20 outline-none">${s.note}</textarea></div><div class="flex flex-col justify-end gap-3"><div class="p-2 bg-[#FBF8F5] rounded-xl border border-[#F5E6D3]"><label class="text-[9px] font-black text-[#C4B19E] block mb-1">地點</label><input type="text" value="${s.location}" onchange="updateSession(${idx}, 'location', this.value)" class="w-full bg-transparent border-none p-0 text-xs font-black outline-none" placeholder="未填寫"></div><div class="px-6 py-2.5 rounded-full inline-flex items-center gap-2 text-[10px] font-black ${bal === 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-500 border border-rose-100'}"><i data-lucide="${bal === 0 ? 'check-circle-2' : 'alert-circle'}" class="w-3"></i><span>核算：${bal}</span></div></div></div>
+                        </div>`;
+                    }).join('')}
+                </div>
+                <div class="p-4 bg-white border-t border-[#F5E6D3] shadow-lg"><button onclick="saveToCloud()" id="modal-save-btn" class="w-full py-4 bg-[#8C7355] text-white rounded-[2rem] font-black shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95"><i data-lucide="save" class="w-5"></i> 儲存並同步</button></div>
             `;
             lucide.createIcons();
         }
 
-        window.updateSession = (idx, key, val) => { state.editingSessions[idx][key] = val; renderModal(); };
-        window.updatePlayer = (idx, pIdx, key, val) => { state.editingSessions[idx].players[pIdx][key] = val; renderModal(); };
-        window.addSession = () => {
-            state.editingSessions.push({ id: "new_" + Date.now(), date: state.selectedDateStr, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] });
-            renderModal();
-        };
+        window.updateSession = (i, k, v) => { state.editingSessions[i][k] = v; renderModal(); };
+        window.updatePlayer = (i, pi, k, v) => { state.editingSessions[i].players[pi][k] = v; renderModal(); };
+        window.addSessionToEdit = () => { state.editingSessions.push({ id: "new_" + Date.now(), date: state.selectedDateStr, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }); renderModal(); };
 
         window.deleteSessionImmediate = async (id) => {
-            if (!state.user) return;
-            const isCloud = state.allSessions.some(s => s.id === id);
-            if (!isCloud) { state.editingSessions = state.editingSessions.filter(s => s.id !== id); renderModal(); return; }
-            if (!confirm('確定刪除此場次？')) return;
-            state.deletedIds.add(id);
-            state.editingSessions = state.editingSessions.filter(s => s.id !== id);
-            renderModal();
-            try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id)); showToast("已刪除"); }
-            catch (e) { showToast("刪除失敗"); state.deletedIds.delete(id); }
+            if (state.allSessions.some(s => s.id === id) && !confirm("確定永久刪除？")) return;
+            state.deletedIds.add(id); state.editingSessions = state.editingSessions.filter(s => s.id !== id);
+            renderModal(); try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id)); showToast("已刪除"); } catch (e) { state.deletedIds.delete(id); }
         };
 
         window.saveToCloud = async () => {
-            if (!state.user) return;
-            const btn = document.getElementById('modal-save-btn');
-            btn.disabled = true; btn.innerHTML = '<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
+            const btn = document.getElementById('modal-save-btn'); btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin w-5"></i>'; lucide.createIcons();
             try {
                 const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state');
                 await setDoc(backupRef, { content: JSON.stringify(state.allSessions), timestamp: Date.now() });
                 for (const s of state.editingSessions) {
-                    if (state.deletedIds.has(s.id)) continue;
-                    const { id, ...rest } = s;
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
+                    if (!state.deletedIds.has(s.id)) {
+                        const { id, ...rest } = s; await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
+                    }
                 }
                 closeModal(); showToast("儲存成功");
             } catch (e) { showToast("儲存失敗"); }
-            btn.disabled = false; btn.innerHTML = '<i data-lucide="save" class="w-5"></i> 儲存變更';
-            lucide.createIcons();
+            btn.disabled = false; btn.innerHTML = '<i data-lucide="save" class="w-5"></i> 儲存並同步'; lucide.createIcons();
         };
 
         window.handleRestore = async () => {
-            if (!state.user || !confirm('還原到上一步？這會覆蓋目前資料。')) return;
-            document.getElementById('loading-screen').classList.remove('hidden');
-            document.getElementById('loading-text').textContent = '正在還原...';
+            if (!confirm("還原到上一步紀錄？")) return;
+            document.getElementById('loading-overlay').classList.remove('hidden');
             try {
-                const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state'));
-                if (!snap.exists()) throw new Error();
-                const current = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'sessions'));
-                for (const d of current.docs) await deleteDoc(d.ref);
-                const backup = JSON.parse(snap.data().content);
-                for (const s of backup) {
-                    const { id, ...rest } = s;
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
+                const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state');
+                const snap = await getDoc(backupRef);
+                if (snap.exists()) {
+                    const cur = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'sessions'));
+                    for (const d of cur.docs) await deleteDoc(d.ref);
+                    const data = JSON.parse(snap.data().content);
+                    for (const s of data) { const { id, ...rest } = s; await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest); }
+                    showToast("還原成功");
                 }
-                showToast("還原成功");
             } catch (e) { showToast("還原失敗"); }
-            document.getElementById('loading-screen').classList.add('hidden');
+            document.getElementById('loading-overlay').classList.add('hidden');
         };
 
         window.exportData = () => {
-            const blob = new Blob([JSON.stringify(state.allSessions, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = 'mahjong_2026.json'; a.click(); URL.revokeObjectURL(url);
+            const b = new Blob([JSON.stringify(state.allSessions, null, 2)], { type: 'application/json' });
+            const u = URL.createObjectURL(b); const a = document.createElement('a');
+            a.href = u; a.download = `mahjong_2026.json`; a.click(); URL.revokeObjectURL(u);
         };
 
         window.importTrigger = () => document.getElementById('file-input').click();
-        
-        // --- 初始化事件監聽 ---
-        document.addEventListener('DOMContentLoaded', () => {
-            const fileInput = document.getElementById('file-input');
-            if (fileInput) {
-                fileInput.addEventListener('change', (e) => {
-                    const file = e.target.files[0]; 
-                    if (!file) return;
-                    const reader = new FileReader(); 
-                    reader.onload = async (event) => {
-                        try {
-                            const data = JSON.parse(event.target.result);
-                            for (const s of data) {
-                                const { id, ...rest } = s;
-                                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
-                            }
-                            showToast("匯入成功");
-                        } catch (err) { showToast("匯入格式錯誤"); }
-                    };
-                    reader.readAsText(file);
-                });
-            }
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const f = e.target.files[0]; if (!f) return;
+            const r = new FileReader(); r.onload = async (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    for (const s of data) { const { id, ...rest } = s; await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest); }
+                    showToast("匯入成功");
+                } catch (err) { showToast("格式錯誤"); }
+            }; r.readAsText(f);
         });
 
         initAuth();
-
     </script>
 </body>
 </html>
