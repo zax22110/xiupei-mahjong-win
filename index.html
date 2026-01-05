@@ -2,701 +2,616 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, collection, onSnapshot, setDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
-import { getAnalytics } from "firebase/analytics";
-import { 
-  Heart, Trophy, TrendingDown, MapPin, ChevronLeft, ChevronRight,
-  Save, Trash2, X, Plus, AlertCircle, CheckCircle2, Dices, User,
-  Users, Coffee, Edit3, BarChart2, Calendar as CalendarIcon, Award, Home, Loader2, ArrowLeft, BookOpen, RotateCcw,
-  Download, Upload, CalendarDays, MessageSquare, StickyNote, PieChart, Calendar as CalendarIconLucide, List, Percent, Hash
-} from 'lucide-react';
-
-// --- Firebase 配置 ---
-// 優先使用環境提供的變數，若無則使用使用者提供的金鑰
-const firebaseConfig = (typeof __firebase_config !== 'undefined') ? JSON.parse(__firebase_config) : {
-  apiKey: "AIzaSyAkJgwcJtWQ4F1TLEnWooWhx42esNkcDpw",
-  authDomain: "xiupei-mahjong-win.firebaseapp.com",
-  projectId: "xiupei-mahjong-win",
-  storageBucket: "xiupei-mahjong-win.firebasestorage.app",
-  messagingSenderId: "999100537674",
-  appId: "1:999100537674:web:b878870518299cefaa3fb3",
-  measurementId: "G-LLLC56Q59Y"
-};
-
-// 初始化 Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// 初始化 Analytics (可選)
-let analytics;
-if (typeof window !== "undefined") {
-  analytics = getAnalytics(app);
-}
-
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'mahjong-2026-v2';
-
-const App = () => {
-  // --- 基礎設定 ---
-  const NAME_1 = "肅佩";
-  const NAME_2 = "泓翰";
-
-  // --- 狀態管理 ---
-  const [user, setUser] = useState(null);
-  const [view, setView] = useState('home'); 
-  const [selectedPlayer, setSelectedPlayer] = useState(null); 
-  const [allSessions, setAllSessions] = useState([]); 
-  const [memoData, setMemoData] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [restoring, setRestoring] = useState(false);
-  const [memoSaving, setMemoSaving] = useState(false);
-  const [importing, setImporting] = useState(false);
-  
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1));
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedDateStr, setSelectedDateStr] = useState(''); 
-  const [editingSessions, setEditingSessions] = useState([]); 
-
-  // 核心：刪除墓碑（防止即時監聽導致刪除的資料復活）
-  const deletedIdsRef = useRef(new Set());
-
-  const [reportMonth, setReportMonth] = useState('total');
-  const [detailMonth, setDetailMonth] = useState('total'); 
-
-  const fileInputRef = useRef(null);
-
-  // --- 1. 自動身份認證 ---
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 麻將日誌</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #F5E6D3;
+            color: #4A3728;
+            -webkit-tap-highlight-color: transparent;
         }
-      } catch (e) { console.error("Auth Error", e); }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
-  }, []);
-
-  // --- 2. 雲端同步 ---
-  useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-
-    const sessionsCol = collection(db, 'artifacts', appId, 'public', 'data', 'sessions');
-    const unsubSessions = onSnapshot(sessionsCol, (snapshot) => {
-      const data = [];
-      snapshot.forEach(docSnap => {
-        const id = docSnap.id;
-        if (deletedIdsRef.current.has(id)) return;
-        data.push({ id, ...docSnap.data() });
-      });
-      // 依日期排序
-      data.sort((a, b) => b.date.localeCompare(a.date));
-      setAllSessions(data);
-      setLoading(false);
-    }, (err) => { 
-      console.error("Snapshot Error", err);
-      setLoading(false); 
-    });
-
-    const memoDoc = doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo');
-    const unsubMemo = onSnapshot(memoDoc, (docSnap) => {
-      if (docSnap.exists()) setMemoData(docSnap.data().content);
-    });
-
-    return () => { unsubSessions(); unsubMemo(); };
-  }, [user]);
-
-  // --- 3. 數據統計邏輯 ---
-  const allStats = useMemo(() => {
-    const players = {}; 
-    allSessions.forEach((session) => {
-      const dateStr = session.date;
-      const month = dateStr.split('-')[1];
-      const opponentNames = session.players.map(p => p.name.trim()).filter(n => n !== "");
-
-      session.players.forEach(p => {
-        const name = p.name.trim();
-        if (!name) return;
-        if (!players[name]) {
-          players[name] = { 
-            win: 0, loss: 0, net: 0, sessions: 0, rounds: 0, 
-            totalWins: 0, monthly: {}, history: [], 
-            monthlySessions: {}, monthlyWins: {} 
-          };
+        .animate-in {
+            animation: fadeIn 0.5s ease-out;
         }
-        const amt = Number(p.amount || 0);
-        players[name].sessions += 1;
-        players[name].rounds += Number(session.rounds || 0);
-        players[name].net += amt;
-        
-        if (amt > 0) {
-          players[name].win += amt;
-          players[name].totalWins += 1;
-          players[name].monthlyWins[month] = (players[name].monthlyWins[month] || 0) + 1;
-        } else if (amt < 0) {
-          players[name].loss += Math.abs(amt);
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        
-        players[name].monthly[month] = (players[name].monthly[month] || 0) + amt;
-        players[name].monthlySessions[month] = (players[name].monthlySessions[month] || 0) + 1;
-        players[name].history.push({
-          id: session.id, date: dateStr, month, location: session.location || "未填寫", 
-          rounds: session.rounds, stakes: session.stakes, amount: amt, note: session.note || "", 
-          opponents: opponentNames.filter(n => n !== name)
-        });
-      });
-    });
-    return { players };
-  }, [allSessions]);
+        .modal-overlay {
+            background-color: rgba(74, 55, 40, 0.6);
+            backdrop-filter: blur(4px);
+        }
+        /* 隱藏捲軸但保持功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="pb-32 overflow-x-hidden">
 
-  const coupleData = {
-    [NAME_1]: allStats.players[NAME_1] || { win: 0, loss: 0, net: 0, sessions: 0, rounds: 0, history: [] },
-    [NAME_2]: allStats.players[NAME_2] || { win: 0, loss: 0, net: 0, sessions: 0, rounds: 0, history: [] },
-    familyNet: (allStats.players[NAME_1]?.net || 0) + (allStats.players[NAME_2]?.net || 0)
-  };
+    <div id="app" class="max-w-3xl mx-auto p-4">
+        <!-- 載入中畫面 -->
+        <div id="loading-screen" class="fixed inset-0 z-[2000] bg-[#F5E6D3] flex flex-col items-center justify-center gap-4">
+            <div class="w-12 h-12 border-4 border-[#8C7355] border-t-transparent rounded-full animate-spin"></div>
+            <p class="font-black text-[#8C7355] tracking-widest" id="loading-text">載入紀錄中...</p>
+        </div>
 
-  const daySummary = useMemo(() => {
-    const summary = {};
-    editingSessions.forEach(s => {
-      s.players.forEach(p => {
-        const name = p.name.trim();
-        if (!name) return;
-        if (!summary[name]) summary[name] = { net: 0, wins: 0, total: 0 };
-        summary[name].net += (Number(p.amount) || 0);
-        summary[name].total += 1;
-        if (Number(p.amount) > 0) summary[name].wins += 1;
-      });
-    });
-    return summary;
-  }, [editingSessions]);
-
-  // --- 4. 核心動作 ---
-
-  const closeModal = () => {
-    deletedIdsRef.current.clear();
-    setIsModalOpen(false);
-  };
-
-  const deleteSessionImmediately = async (sessionId) => {
-    if (deletedIdsRef.current.has(sessionId)) return;
-    const isCloudSession = allSessions.some(s => s.id === sessionId);
-
-    if (!isCloudSession) {
-      setEditingSessions(prev => prev.filter(s => s.id !== sessionId));
-      return;
-    }
-
-    if (!window.confirm('確定要永久刪除此場次嗎？')) return;
-
-    try {
-      setSaving(true);
-      deletedIdsRef.current.add(sessionId);
-      setEditingSessions(prev => prev.filter(s => s.id !== sessionId));
-      setAllSessions(prev => prev.filter(s => s.id !== sessionId));
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', sessionId));
-    } catch (e) {
-      alert('刪除失敗：' + e.message);
-      deletedIdsRef.current.delete(sessionId);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRestore = async () => {
-    if (!user) return;
-    if (!window.confirm('確定要還原到上一步紀錄嗎？這會覆蓋目前的所有數據。')) return;
-    setRestoring(true);
-    try {
-      const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state');
-      const snap = await getDoc(backupRef);
-      if (!snap.exists()) { alert('找不到備份紀錄。'); return; }
-      const backupData = JSON.parse(snap.data().content);
-      
-      const currentDocs = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'sessions'));
-      for (const d of currentDocs.docs) { await deleteDoc(d.ref); }
-
-      deletedIdsRef.current.clear();
-      for (const s of backupData) {
-        const { id, ...rest } = s;
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
-      }
-      alert('還原成功！');
-    } catch (e) { alert('還原失敗'); } finally { setRestoring(false); }
-  };
-
-  const saveToCloud = async () => {
-    if (!user) return;
-    for (const s of editingSessions) {
-      const total = s.players.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      if (total !== 0 && !deletedIdsRef.current.has(s.id)) {
-        if (!window.confirm(`場次 "${s.location || '未命名'}" 的金額不平衡 (${total})，確定要儲存嗎？`)) return;
-      }
-    }
-
-    setSaving(true);
-    try {
-      const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state');
-      await setDoc(backupRef, { content: JSON.stringify(allSessions), timestamp: Date.now() });
-
-      for (const s of editingSessions) {
-        if (deletedIdsRef.current.has(s.id)) continue;
-        const { id, ...rest } = s;
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
-      }
-      closeModal();
-    } catch (e) { 
-      console.error(e); 
-      alert('儲存失敗');
-    } finally { 
-      setSaving(false); 
-    }
-  };
-
-  const saveMemo = async () => {
-    if (!user) return;
-    setMemoSaving(true);
-    try {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo'), { content: memoData, updatedAt: Date.now() });
-    } catch (e) { console.error(e); } finally { setMemoSaving(false); }
-  };
-
-  const openModal = (dayOrDateStr) => {
-    let dateStr = '';
-    if (typeof dayOrDateStr === 'number') {
-      dateStr = `2026-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(dayOrDateStr).padStart(2, '0')}`;
-    } else {
-      dateStr = dayOrDateStr;
-    }
-    setSelectedDateStr(dateStr);
-    
-    const existing = allSessions.filter(s => s.date === dateStr);
-    setEditingSessions(existing.length > 0 ? JSON.parse(JSON.stringify(existing)) : [{
-      id: "new_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), 
-      date: dateStr, stakes: '30/10', location: '', rounds: 1, note: '',
-      players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }]
-    }]);
-    setIsModalOpen(true);
-  };
-
-  const openToday = () => {
-    const today = new Date();
-    const dateStr = `2026-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    openModal(dateStr);
-  };
-
-  const monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
-
-  if (loading || restoring) return (
-    <div className="min-h-screen bg-[#F5E6D3] flex flex-col items-center justify-center gap-4">
-      <Loader2 className="animate-spin text-[#8C7355]" size={48} />
-      <p className="font-black text-[#8C7355] tracking-widest">{restoring ? '正在執行還原...' : '載入紀錄中...'}</p>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-[#F5E6D3] text-[#4A3728] font-sans p-4 pb-32 overflow-x-hidden">
-      <div className="max-w-3xl mx-auto">
-        
-        {/* Header */}
-        <header className="relative flex items-center justify-center h-16 mb-8 pt-4">
-          <div className="absolute left-0">
-            <button 
-                onClick={handleRestore}
-                className="w-10 h-10 flex items-center justify-center bg-white text-[#8C7355] border border-[#E6D5C3] rounded-full shadow-sm hover:bg-[#F5E6D3] transition-all active:scale-90"
-                title="返回上一步紀錄"
-            >
-                <RotateCcw size={18} />
-            </button>
-          </div>
-
-          <div className="bg-white px-6 py-2.5 rounded-full shadow-sm border border-[#E6D5C3] flex items-center gap-2 z-10">
-             <Coffee className="text-[#8C7355]" size={18} />
-             <h1 className="text-base font-black text-[#4A3728] whitespace-nowrap tracking-tight">2026 麻將日誌</h1>
-          </div>
-
-          <div className="absolute right-0">
-            <button 
-                onClick={openToday} 
-                className="w-10 h-10 flex items-center justify-center bg-[#8C7355] text-white rounded-full shadow-lg transition-all active:scale-90"
-                title="快速新增紀錄"
-            >
-                <Plus size={18} strokeWidth={3} />
-            </button>
-          </div>
+        <!-- Header -->
+        <header class="relative flex items-center justify-center h-16 mb-8 pt-4">
+            <div class="absolute left-0">
+                <button onclick="handleRestore()" class="w-10 h-10 flex items-center justify-center bg-white text-[#8C7355] border border-[#E6D5C3] rounded-full shadow-sm hover:bg-[#F5E6D3] transition-all active:scale-90" title="返回上一步紀錄">
+                    <i data-lucide="rotate-ccw" class="w-[18px]"></i>
+                </button>
+            </div>
+            <div class="bg-white px-6 py-2.5 rounded-full shadow-sm border border-[#E6D5C3] flex items-center gap-2 z-10">
+                <i data-lucide="coffee" class="text-[#8C7355] w-[18px]"></i>
+                <h1 class="text-base font-black text-[#4A3728] whitespace-nowrap tracking-tight">2026 麻將日誌</h1>
+            </div>
+            <div class="absolute right-0">
+                <button onclick="openToday()" class="w-10 h-10 flex items-center justify-center bg-[#8C7355] text-white rounded-full shadow-lg transition-all active:scale-90" title="快速新增紀錄">
+                    <i data-lucide="plus" class="w-[18px]" style="stroke-width: 3px;"></i>
+                </button>
+            </div>
         </header>
 
-        {/* --- Home View --- */}
-        {view === 'home' && (
-          <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="bg-[#8C7355] rounded-[3rem] p-10 text-white shadow-xl flex flex-col items-center text-center relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-6 opacity-10"><Heart size={100} fill="white" /></div>
-              <p className="text-[10px] font-black tracking-widest opacity-60 mb-2 uppercase">Family 2026 Balance</p>
-              <h2 className="text-5xl font-black mb-4 tracking-tighter">
-                {coupleData.familyNet >= 0 ? `+$${coupleData.familyNet}` : `-$${Math.abs(coupleData.familyNet)}`}
-              </h2>
-              <div className="bg-white/20 px-5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 mb-2">
-                <CheckCircle2 size={12} /> 雲端數據已同步
-              </div>
-            </div>
+        <!-- 主視圖容器 -->
+        <main id="main-content" class="animate-in"></main>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[NAME_1, NAME_2].map((name) => {
-                const data = coupleData[name];
-                return (
-                  <div key={name} onClick={() => { setSelectedPlayer(name); setView('report'); }} className="bg-white rounded-[2.5rem] p-8 shadow-sm border-b-8 border-[#E6D5C3] cursor-pointer hover:translate-y-[-2px] transition-all active:scale-95">
-                    <div className="flex items-start justify-between mb-6">
-                      <div className="flex items-center gap-3 pt-1">
-                        <div className="p-2.5 bg-[#F5E6D3] text-[#8C7355] rounded-2xl shadow-inner"><User size={22} /></div>
-                        <div><span className="font-black text-xl text-[#4A3728] block">{name}</span><span className="text-[10px] text-[#C4B19E] font-bold">年度表現</span></div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] font-black text-[#C4B19E] uppercase block mb-1">總盈虧</span>
-                        <div className={`text-3xl font-black tracking-tight ${data.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}`}>
-                          {data.net > 0 ? `+${data.net}` : data.net}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mb-6">
-                      <div className="bg-[#FBF8F5] p-3 rounded-2xl text-center border border-[#F5E6D3]/50 shadow-inner">
-                        <p className="text-[9px] text-[#C4B19E] font-black uppercase mb-1">累計贏錢</p>
-                        <p className="text-lg font-black text-[#8C7355]">${data.win}</p>
-                      </div>
-                      <div className="bg-[#FBF8F5] p-3 rounded-2xl text-center border border-[#F5E6D3]/50 shadow-inner">
-                        <p className="text-[9px] text-[#C4B19E] font-black uppercase mb-1">累計輸錢</p>
-                        <p className="text-lg font-black text-[#A64B4B]">${data.loss}</p>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center text-[10px] px-1 pt-3 border-t border-dashed border-[#F5E6D3] font-black">
-                      <div className="flex items-center gap-1.5 text-[#C4B19E]"><Dices size={12} /><span>{data.sessions} 場 / {data.rounds} 將</span></div>
-                      <span className="text-[#C4B19E]">查看明細 {'>'}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* --- Calendar View --- */}
-        {view === 'calendar' && (
-          <div className="space-y-4 animate-in fade-in duration-500">
-            <div className="bg-[#FFFDFB] rounded-[2.5rem] p-6 border-8 border-white shadow-sm">
-              <div className="flex items-center justify-between mb-8">
-                <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] hover:bg-[#E6D5C3] transition-colors active:scale-90"><ChevronLeft size={20} /></button>
-                <div className="text-center relative"><h2 className="text-lg font-black">{monthNames[currentDate.getMonth()]}</h2><p className="text-[9px] font-black text-[#C4B19E]">2026 CALENDAR</p></div>
-                <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] hover:bg-[#E6D5C3] transition-colors active:scale-90"><ChevronRight size={20} /></button>
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d} className="text-center text-[10px] font-black text-[#C4B19E] mb-2 uppercase">{d}</div>)}
-                {(() => {
-                  const year = currentDate.getFullYear();
-                  const month = currentDate.getMonth();
-                  const days = new Date(year, month + 1, 0).getDate();
-                  const startDay = new Date(year, month, 1).getDay();
-                  const cells = [];
-                  for (let i = 0; i < startDay; i++) cells.push(<div key={`empty-${i}`} className="h-24"></div>);
-                  for (let d = 1; d <= days; d++) {
-                    const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                    const sessions = allSessions.filter(s => s.date === dateKey);
-                    const n1 = sessions.reduce((a, s) => a + (Number(s.players.find(p => p.name === NAME_1)?.amount) || 0), 0);
-                    const n2 = sessions.reduce((a, s) => a + (Number(s.players.find(p => p.name === NAME_2)?.amount) || 0), 0);
-                    cells.push(
-                      <div key={d} onClick={() => openModal(d)} className={`h-24 border border-[#F5E6D3]/50 rounded-xl p-1 cursor-pointer transition-all active:scale-95 ${sessions.length > 0 ? 'bg-white ring-1 ring-[#8C7355]/20 shadow-sm' : 'bg-white/30 hover:bg-[#F5E6D3]/20'}`}>
-                        <span className="text-[10px] font-black text-[#C4B19E]">{d}</span>
-                        {sessions.length > 0 && (
-                          <div className="mt-1 space-y-0.5 overflow-hidden">
-                            <div className={`text-[7px] p-0.5 rounded truncate scale-90 origin-left ${n1 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}`}>
-                              <span>佩</span> <span>{n1}</span>
-                            </div>
-                            <div className={`text-[7px] p-0.5 rounded truncate scale-90 origin-left ${n2 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}`}>
-                              <span>翰</span> <span>{n2}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-                  return cells;
-                })()}
-              </div>
-            </div>
-            
-            <div className="flex gap-3 px-2">
-                <button onClick={() => { const dataStr = JSON.stringify(allSessions, null, 2); const blob = new Blob([dataStr], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `mahjong_diary_2026_backup.json`; link.click(); URL.revokeObjectURL(url); }} className="flex-1 py-4 bg-white border-2 border-[#F5E6D3] text-[#8C7355] rounded-[1.5rem] text-xs font-black shadow-sm active:scale-95 flex items-center justify-center gap-2"><Download size={16} /> 匯出備份</button>
-                <button onClick={() => fileInputRef.current?.click()} disabled={importing} className="flex-1 py-4 bg-white border-2 border-[#F5E6D3] text-[#8C7355] rounded-[1.5rem] text-xs font-black shadow-sm active:scale-95 flex items-center justify-center gap-2"><Upload size={16} /> 匯入資料</button>
-                <input type="file" ref={fileInputRef} onChange={(e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (event) => { try { const importedData = JSON.parse(event.target.result); setImporting(true); for (const s of importedData) { const { id, ...rest } = s; await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest); } alert('匯入成功！數據已更新。'); } catch (err) { alert('匯入失敗：格式錯誤'); } finally { setImporting(false); } }; reader.readAsText(file); }} accept=".json" className="hidden" />
-            </div>
-          </div>
-        )}
-
-        {/* --- Report View --- */}
-        {view === 'report' && (
-          <div className="animate-in fade-in duration-500">
-             {selectedPlayer ? (
-               <div className="bg-[#FFFDFB] rounded-[2.5rem] p-6 border-8 border-white shadow-sm min-h-[60vh]">
-                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-                   <div className="flex items-center gap-4">
-                     <button onClick={() => setSelectedPlayer(null)} className="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><ArrowLeft size={20} /></button>
-                     <div><h2 className="text-xl font-black text-[#4A3728]">{selectedPlayer} 的戰績</h2><p className="text-[10px] font-bold text-[#C4B19E] uppercase tracking-widest">Personal Performance</p></div>
-                   </div>
-                   <select value={detailMonth} onChange={e => setDetailMonth(e.target.value)} className="bg-[#F5E6D3] rounded-xl text-xs font-black border-none px-4 py-2 text-[#8C7355] shadow-sm cursor-pointer outline-none">
-                     <option value="total">全年度成績</option>
-                     {monthNames.map((m, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
-                   </select>
-                 </div>
-
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-                   {(() => {
-                     const filtered = allStats.players[selectedPlayer]?.history.filter(h => detailMonth === 'total' || h.month === detailMonth) || [];
-                     const stats = filtered.reduce((acc, curr) => {
-                        acc.sessions += 1;
-                        acc.rounds += Number(curr.rounds || 0);
-                        acc.net += curr.amount;
-                        if (curr.amount > 0) acc.wins += 1;
-                        return acc;
-                     }, { sessions: 0, rounds: 0, net: 0, wins: 0 });
-                     const winRate = stats.sessions > 0 ? ((stats.wins / stats.sessions) * 100).toFixed(1) : "0.0";
-                     return (
-                        <>
-                          <div className="bg-[#FBF8F5] p-4 rounded-3xl text-center border border-[#F5E6D3]/30"><p className="text-[8px] font-bold text-[#C4B19E] mb-1">場數</p><p className="text-xl font-black text-[#8C7355]">{stats.sessions}</p></div>
-                          <div className="bg-[#FBF8F5] p-4 rounded-3xl text-center border border-[#F5E6D3]/30"><p className="text-[8px] font-bold text-[#C4B19E] mb-1">勝率</p><p className="text-xl font-black text-[#8C7355]">{winRate}%</p></div>
-                          <div className="bg-[#FBF8F5] p-4 rounded-3xl text-center border border-[#F5E6D3]/30"><p className="text-[8px] font-bold text-[#C4B19E] mb-1">累計將數</p><p className="text-xl font-black text-[#8C7355]">{stats.rounds}</p></div>
-                          <div className="bg-[#FBF8F5] p-4 rounded-3xl text-center border border-[#F5E6D3]/30"><p className="text-[8px] font-bold text-[#C4B19E] mb-1">淨盈虧</p><p className={`text-xl font-black ${stats.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}`}>{stats.net}</p></div>
-                        </>
-                     );
-                   })()}
-                 </div>
-
-                 <div className="space-y-4">
-                   {allStats.players[selectedPlayer]?.history.filter(h => detailMonth === 'total' || h.month === detailMonth).slice().reverse().map((h, i) => (
-                     <div key={i} className="bg-white p-5 rounded-[2rem] border border-[#F5E6D3] shadow-sm">
-                       <div className="flex justify-between items-start mb-3">
-                         <div className="flex flex-col"><span className="text-xs font-black text-gray-700">{h.date}</span><span className="text-[9px] text-[#C4B19E]">地點：{h.location}</span></div>
-                         <span className={`text-xl font-black ${h.amount >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}`}>
-                           {h.amount > 0 ? `+${h.amount}` : h.amount}
-                         </span>
-                       </div>
-                       <div className="flex items-center gap-2 mb-3 bg-[#FBF8F5] py-2 px-3 rounded-xl"><Users size={12} className="text-[#8C7355]" /><span className="text-[10px] text-gray-600 font-medium">{h.opponents.join('、')}</span></div>
-                       <div className="flex flex-wrap gap-2 border-t border-dashed border-[#F5E6D3] pt-3">
-                         <span className="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">{h.rounds} 將</span>
-                         <span className="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">{h.stakes || '30/10'}</span>
-                       </div>
-                       {h.note && <div className="mt-3 p-3 bg-[#F0EAD6]/30 rounded-2xl border-l-4 border-[#8C7355] flex gap-2 items-start text-[10px] italic leading-relaxed"><span>「 {h.note} 」</span></div>}
-                     </div>
-                   ))}
-                 </div>
-               </div>
-             ) : (
-               <div className="bg-[#FFFDFB] rounded-[3rem] p-8 border-8 border-white shadow-sm">
-                 <div className="flex justify-between items-center mb-8">
-                   <div><h2 className="text-xl font-black">2026 雀神排行</h2><p className="text-[10px] font-bold text-[#C4B19E] uppercase tracking-widest">{reportMonth === 'total' ? '全年度總累積' : `${monthNames[parseInt(reportMonth)-1]} 榜`}</p></div>
-                   <select value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="bg-[#F5E6D3] rounded-xl text-xs font-black border-none px-4 py-2 text-[#8C7355] shadow-sm outline-none cursor-pointer">
-                     <option value="total">全年度總覽</option>
-                     {monthNames.map((m, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
-                   </select>
-                 </div>
-                 
-                 <div className="space-y-3 px-1">
-                   <div className="grid grid-cols-12 px-4 py-2 text-[10px] font-black text-[#C4B19E] uppercase tracking-widest border-b border-[#F5E6D3] mb-2 text-center">
-                     <div className="col-span-4 text-left">排名 / 玩家</div>
-                     <div className="col-span-2 text-left px-1">場數</div>
-                     <div className="col-span-3 text-left">勝率</div>
-                     <div className="col-span-3 text-right">盈虧</div>
-                   </div>
-                   
-                   {Object.entries(allStats.players)
-                    .map(([name, data]) => ({ name, ...data }))
-                    .filter(p => reportMonth === 'total' || p.monthlySessions[reportMonth] > 0)
-                    .sort((a, b) => { 
-                      const valA = reportMonth === 'total' ? a.net : (a.monthly[reportMonth] || 0);
-                      const valB = reportMonth === 'total' ? b.net : (b.monthly[reportMonth] || 0);
-                      return valB - valA; 
-                    })
-                    .map((p, idx) => {
-                       const displayAmount = reportMonth === 'total' ? p.net : (p.monthly[reportMonth] || 0);
-                       const displaySessions = reportMonth === 'total' ? p.sessions : (p.monthlySessions[reportMonth] || 0);
-                       const currentWins = reportMonth === 'total' ? p.totalWins : (p.monthlyWins[reportMonth] || 0);
-                       const winRate = displaySessions > 0 ? ((currentWins / displaySessions) * 100).toFixed(1) : "0.0";
-                       
-                       return (
-                           <div key={p.name} onClick={() => setSelectedPlayer(p.name)} className={`grid grid-cols-12 items-center px-4 py-5 rounded-[2rem] border-2 cursor-pointer transition-all active:scale-95 ${idx === 0 ? 'bg-[#F0EAD6]/40 border-[#8C7355]/20 shadow-sm' : 'bg-white border-transparent shadow-sm'}`}>
-                             <div className="col-span-4 flex items-center gap-2">
-                               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 ${idx === 0 ? 'bg-[#8C7355] text-white shadow-md' : 'bg-[#F5E6D3] text-[#8C7355]'}`}>
-                                 {idx + 1}
-                               </div>
-                               <span className="font-black text-[#4A3728] text-xs sm:text-sm truncate">{p.name}</span>
-                             </div>
-                             <div className="col-span-2 text-left px-1 font-black text-[#C4B19E] text-xs">{displaySessions}</div>
-                             <div className="col-span-3 text-left">
-                               <span className="text-[10px] font-black text-[#8C7355] px-1.5 py-0.5 bg-[#FBF8F5] rounded-lg border border-[#F5E6D3]">
-                                 {winRate}%
-                               </span>
-                             </div>
-                             <div className={`col-span-3 text-right font-black text-xs sm:text-sm ${displayAmount >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}`}>
-                               {displayAmount > 0 ? `+${displayAmount}` : displayAmount}
-                             </div>
-                           </div>
-                       );
-                   })}
-                 </div>
-               </div>
-             )}
-          </div>
-        )}
-
-        {/* --- Memo View --- */}
-        {view === 'memo' && (
-          <div className="animate-in slide-in-from-bottom-6 duration-500">
-            <div className="bg-[#FFFDFB] rounded-[3rem] p-8 border-8 border-white shadow-sm min-h-[70vh] flex flex-col">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-xl font-black flex items-center gap-2"><BookOpen className="text-[#8C7355]" /> 備忘錄</h2>
-                  <p className="text-[10px] font-bold text-[#C4B19E] uppercase tracking-widest">Rules & Notes</p>
-                </div>
-                <button onClick={saveMemo} disabled={memoSaving} className="flex items-center gap-2 bg-[#8C7355] text-white px-6 py-2.5 rounded-full text-xs font-black shadow-lg active:scale-95 transition-all">
-                  {memoSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 儲存變更
-                </button>
-              </div>
-              <textarea 
-                value={memoData} 
-                onChange={(e) => setMemoData(e.target.value)} 
-                className="w-full flex-1 bg-[#FBF8F5] border-2 border-[#F5E6D3] rounded-[2rem] p-8 text-sm font-medium leading-relaxed outline-none resize-none focus:ring-2 focus:ring-[#8C7355]/20 transition-all shadow-inner" 
-                placeholder="在此輸入公約、特別規則或開局筆記..." 
-              />
-            </div>
-          </div>
-        )}
-
-        {/* --- Navigation --- */}
-        <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-6 py-4 rounded-full shadow-2xl border border-[#E6D5C3] flex gap-8 z-40">
-          {[
-            { id: 'home', icon: Home, label: '總覽' },
-            { id: 'calendar', icon: CalendarIcon, label: '日誌' },
-            { id: 'report', icon: BarChart2, label: '排行' },
-            { id: 'memo', icon: BookOpen, label: '備忘' }
-          ].map(item => (
-            <button key={item.id} onClick={() => { setView(item.id); setSelectedPlayer(null); }} className={`flex flex-col items-center gap-1 transition-all ${view === item.id ? 'text-[#8C7355] scale-110' : 'text-[#D9C5B2]'}`}>
-              <item.icon size={22} />
-              <span className="text-[9px] font-black uppercase tracking-tight">{item.label}</span>
+        <!-- 底部導覽列 -->
+        <nav class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-6 py-4 rounded-full shadow-2xl border border-[#E6D5C3] flex gap-8 z-40">
+            <button onclick="switchView('home')" id="nav-home" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
+                <i data-lucide="home" class="w-[22px]"></i>
+                <span class="text-[9px] font-black uppercase">統計</span>
             </button>
-          ))}
+            <button onclick="switchView('calendar')" id="nav-calendar" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
+                <i data-lucide="calendar" class="w-[22px]"></i>
+                <span class="text-[9px] font-black uppercase">日誌</span>
+            </button>
+            <button onclick="switchView('report')" id="nav-report" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
+                <i data-lucide="bar-chart-2" class="w-[22px]"></i>
+                <span class="text-[9px] font-black uppercase">排行</span>
+            </button>
+            <button onclick="switchView('memo')" id="nav-memo" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
+                <i data-lucide="book-open" class="w-[22px]"></i>
+                <span class="text-[9px] font-black uppercase">備忘</span>
+            </button>
         </nav>
-      </div>
-
-      {/* --- Modal --- */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-[#4A3728]/60 backdrop-blur-sm flex items-center justify-center p-0 md:p-6 z-[1000] animate-in fade-in">
-          <div className="bg-[#FFFDFB] w-full max-w-4xl h-full md:h-auto md:max-h-[90vh] md:rounded-[3.5rem] flex flex-col overflow-hidden shadow-2xl border-t-[12px] border-[#8C7355]">
-            <div className="p-6 border-b border-[#F5E6D3] flex justify-between items-center bg-white shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><CalendarDays size={20} /></div>
-                <h3 className="text-xl font-black text-[#4A3728]">{selectedDateStr} 管理</h3>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setEditingSessions([...editingSessions, { id: "new_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), date: selectedDateStr, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }])} 
-                  className="bg-[#A67B5B] text-white w-10 h-10 flex items-center justify-center rounded-xl shadow-md active:scale-95 font-black text-2xl" 
-                >+</button>
-                <button onClick={closeModal} className="bg-[#F5E6D3] p-2 rounded-full text-[#8C7355] active:scale-95 shadow-sm"><X size={20} /></button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-[#FBF8F5]">
-              <div className="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/20 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4"><PieChart size={18} className="text-[#8C7355]" /><h4 className="text-sm font-black text-[#8C7355] uppercase tracking-wider">戰績快報</h4></div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {Object.entries(daySummary).map(([name, data]) => (
-                        <div key={name} className="bg-[#FBF8F5] p-3 rounded-2xl border border-[#F5E6D3] flex flex-col items-center">
-                          <span className="text-[9px] font-black text-[#C4B19E] mb-1">{name}</span>
-                          <span className={`text-sm font-black ${data.net > 0 ? 'text-[#8C7355]' : data.net < 0 ? 'text-[#A64B4B]' : 'text-gray-400'}`}>
-                            {data.net > 0 ? `+${data.net}` : data.net}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-              </div>
-
-              {editingSessions.map((session, sIdx) => {
-                const totalAmount = session.players.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-                const isBalanced = totalAmount === 0;
-                return (
-                  <div key={session.id} className="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/30 relative shadow-sm">
-                    <button onClick={() => deleteSessionImmediately(session.id)} className="absolute -top-3 -right-3 bg-white text-rose-500 p-2.5 rounded-full shadow-lg border border-rose-100 active:scale-90 z-10"><Trash2 size={18} /></button>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                      <div className="col-span-2">
-                        <label className="text-[10px] font-black text-[#C4B19E] mb-1 block uppercase tracking-widest">日期</label>
-                        <div className="flex items-center gap-2 bg-[#F5E6D3]/30 p-2 rounded-xl border border-[#F5E6D3] shadow-inner">
-                          <CalendarIconLucide size={14} className="text-[#8C7355]" />
-                          <input type="date" value={session.date} onChange={e => { const nl = [...editingSessions]; nl[sIdx].date = e.target.value; setEditingSessions(nl); }} className="bg-transparent border-none text-[11px] font-black text-[#8C7355] focus:ring-0 p-0 w-full" />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-[#C4B19E] mb-1 block uppercase">底 / 台</label>
-                        <div className="flex items-center gap-2 bg-[#F5E6D3]/30 p-2 rounded-xl border border-[#F5E6D3] shadow-inner">
-                          <Hash size={12} className="text-[#8C7355]" />
-                          <input type="text" value={session.stakes} placeholder="30/10" onChange={e => { const nl = [...editingSessions]; nl[sIdx].stakes = e.target.value; setEditingSessions(nl); }} className="bg-transparent border-none text-xs font-black w-full focus:ring-0 p-0" />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-[#C4B19E] mb-1 block uppercase">將數</label>
-                        <input type="number" value={session.rounds} onChange={e => { const nl = [...editingSessions]; nl[sIdx].rounds = e.target.value; setEditingSessions(nl); }} className="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner" />
-                      </div>
-                    </div>
-                    
-                    <div className="mb-4">
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {session.players.map((p, pIdx) => (
-                          <div key={pIdx} className={`flex items-center gap-2 p-3 rounded-2xl border-2 ${pIdx < 2 ? 'bg-[#F5E6D3]/10 border-[#F5E6D3]/50' : 'bg-[#FBF8F5] border-transparent shadow-inner'}`}>
-                            <input type="text" value={p.name} onChange={e => { const nl = [...editingSessions]; nl[sIdx].players[pIdx].name = e.target.value; setEditingSessions(nl); }} className="flex-1 bg-transparent border-none text-xs font-black focus:ring-0 text-[#4A3728]" placeholder="姓名" />
-                            <div className="bg-white px-3 py-1.5 rounded-xl flex items-center shadow-sm border border-gray-100">
-                              <span className="text-[10px] text-[#C4B19E] mr-1">$</span>
-                              <input type="number" value={p.amount} onChange={e => { const nl = [...editingSessions]; nl[sIdx].players[pIdx].amount = e.target.value; setEditingSessions(nl); }} className={`w-16 bg-transparent border-none text-right font-black text-xs focus:ring-0 ${Number(p.amount) > 0 ? 'text-[#8C7355]' : Number(p.amount) < 0 ? 'text-[#A64B4B]' : 'text-gray-400'}`} />
-                            </div>
-                          </div>
-                        ))}
-                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#F5E6D3] pt-4 mt-2">
-                       <div className="space-y-2">
-                         <label className="flex items-center gap-2 text-[10px] font-black text-[#8C7355] uppercase"><MessageSquare size={12}/> 筆記</label>
-                         <textarea value={session.note} onChange={e => { const nl = [...editingSessions]; nl[sIdx].note = e.target.value; setEditingSessions(nl); }} className="w-full bg-[#F5E6D3]/20 border-2 border-dashed border-[#F5E6D3] rounded-2xl p-4 text-[11px] font-medium transition-all resize-none h-20 outline-none" placeholder="紀錄筆記..." />
-                       </div>
-                       <div className="flex flex-col justify-end gap-3">
-                          <div className={`px-6 py-2.5 rounded-full inline-flex items-center justify-between gap-2 text-[10px] font-black ${isBalanced ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-500 border border-rose-100'}`}>
-                            <div className="flex items-center gap-2">{isBalanced ? <CheckCircle2 size={14}/> : <AlertCircle size={14}/>} <span>核算：{totalAmount}</span></div>
-                          </div>
-                          <div className="p-2 bg-[#FBF8F5] rounded-xl border border-[#F5E6D3]">
-                            <label className="text-[9px] font-black text-[#C4B19E] block mb-1">地點</label>
-                            <input type="text" value={session.location} onChange={e => { const nl = [...editingSessions]; nl[sIdx].location = e.target.value; setEditingSessions(nl); }} className="w-full bg-transparent border-none p-0 text-xs font-black focus:ring-0" placeholder="未填寫" />
-                          </div>
-                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            <div className="p-4 bg-white border-t border-[#F5E6D3] shadow-lg">
-              <button onClick={saveToCloud} disabled={saving} className="w-full py-4 bg-[#8C7355] text-white rounded-[2rem] font-black shadow-lg flex items-center justify-center gap-3 active:scale-[0.98] transition-all">
-                {saving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />} 儲存變更
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
-  );
-};
 
-export default App;
+    <!-- Modal 容器 -->
+    <div id="modal-container" class="hidden fixed inset-0 z-[1000] modal-overlay flex items-center justify-center p-0 md:p-6 animate-in">
+        <!-- Modal 內容會由 JS 動態生成 -->
+    </div>
+
+    <!-- 自定義訊息盒 -->
+    <div id="toast" class="hidden fixed top-10 left-1/2 -translate-x-1/2 z-[3000] bg-[#4A3728] text-white px-6 py-3 rounded-full shadow-2xl font-bold transition-all"></div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, onSnapshot, setDoc, deleteDoc, getDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase 配置 ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAkJgwcJtWQ4F1TLEnWooWhx42esNkcDpw",
+            authDomain: "xiupei-mahjong-win.firebaseapp.com",
+            projectId: "xiupei-mahjong-win",
+            storageBucket: "xiupei-mahjong-win.firebasestorage.app",
+            messagingSenderId: "999100537674",
+            appId: "1:999100537674:web:b878870518299cefaa3fb3",
+            measurementId: "G-LLLC56Q59Y"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'mahjong-2026-v2';
+
+        // --- 全域狀態 ---
+        let state = {
+            user: null,
+            view: 'home',
+            allSessions: [],
+            memoData: '',
+            currentDate: new Date(2026, 0, 1),
+            selectedPlayer: null,
+            deletedIds: new Set(),
+            editingSessions: [],
+            selectedDateStr: '',
+            reportMonth: 'total',
+            detailMonth: 'total',
+            isModalOpen: false,
+            saving: false
+        };
+
+        const NAME_1 = "肅佩";
+        const NAME_2 = "泓翰";
+        const monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
+
+        // --- 初始化認證 ---
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                console.error("Auth Error", e);
+                showToast("連線失敗，請重新整理");
+            }
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            state.user = user;
+            if (user) {
+                setupListeners();
+            }
+        });
+
+        // --- 資料監聽 ---
+        function setupListeners() {
+            const sessionsCol = collection(db, 'artifacts', appId, 'public', 'data', 'sessions');
+            onSnapshot(sessionsCol, (snapshot) => {
+                const data = [];
+                snapshot.forEach(docSnap => {
+                    const id = docSnap.id;
+                    if (state.deletedIds.has(id)) return;
+                    data.push({ id, ...docSnap.data() });
+                });
+                data.sort((a, b) => b.date.localeCompare(a.date));
+                state.allSessions = data;
+                document.getElementById('loading-screen').classList.add('hidden');
+                render();
+            }, (err) => {
+                console.error("Snapshot Error", err);
+                showToast("資料讀取錯誤");
+            });
+
+            const memoDoc = doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo');
+            onSnapshot(memoDoc, (docSnap) => {
+                if (docSnap.exists()) state.memoData = docSnap.data().content;
+                if (state.view === 'memo') render();
+            });
+        }
+
+        // --- 工具函數 ---
+        window.showToast = (msg) => {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 3000);
+        };
+
+        function calculateStats() {
+            const players = {};
+            state.allSessions.forEach(session => {
+                const month = session.date.split('-')[1];
+                const opponentNames = session.players.map(p => p.name.trim()).filter(n => n);
+                
+                session.players.forEach(p => {
+                    const name = p.name.trim();
+                    if (!name) return;
+                    if (!players[name]) {
+                        players[name] = { win: 0, loss: 0, net: 0, sessions: 0, rounds: 0, totalWins: 0, monthly: {}, history: [], monthlySessions: {}, monthlyWins: {} };
+                    }
+                    const amt = Number(p.amount || 0);
+                    players[name].sessions += 1;
+                    players[name].rounds += Number(session.rounds || 0);
+                    players[name].net += amt;
+                    if (amt > 0) {
+                        players[name].win += amt;
+                        players[name].totalWins += 1;
+                        players[name].monthlyWins[month] = (players[name].monthlyWins[month] || 0) + 1;
+                    } else if (amt < 0) {
+                        players[name].loss += Math.abs(amt);
+                    }
+                    players[name].monthly[month] = (players[name].monthly[month] || 0) + amt;
+                    players[name].monthlySessions[month] = (players[name].monthlySessions[month] || 0) + 1;
+                    players[name].history.push({
+                        id: session.id, date: session.date, month, location: session.location || "未填寫",
+                        rounds: session.rounds, stakes: session.stakes, amount: amt, note: session.note || "",
+                        opponents: opponentNames.filter(n => n !== name)
+                    });
+                });
+            });
+            return players;
+        }
+
+        // --- 視圖切換 ---
+        window.switchView = (newView) => {
+            state.view = newView;
+            if (newView !== 'report') state.selectedPlayer = null;
+            render();
+        };
+
+        // --- 渲染邏輯 ---
+        function render() {
+            const main = document.getElementById('main-content');
+            main.innerHTML = '';
+            
+            // 更新導覽列狀態
+            ['home', 'calendar', 'report', 'memo'].forEach(id => {
+                const navBtn = document.getElementById(`nav-${id}`);
+                if (state.view === id) {
+                    navBtn.classList.add('text-[#8C7355]', 'scale-110');
+                    navBtn.classList.remove('text-[#D9C5B2]');
+                } else {
+                    navBtn.classList.remove('text-[#8C7355]', 'scale-110');
+                    navBtn.classList.add('text-[#D9C5B2]');
+                }
+            });
+
+            if (state.view === 'home') renderHome(main);
+            else if (state.view === 'calendar') renderCalendar(main);
+            else if (state.view === 'report') renderReport(main);
+            else if (state.view === 'memo') renderMemo(main);
+
+            lucide.createIcons();
+        }
+
+        function renderHome(container) {
+            const players = calculateStats();
+            const p1 = players[NAME_1] || { win: 0, loss: 0, net: 0, sessions: 0, rounds: 0 };
+            const p2 = players[NAME_2] || { win: 0, loss: 0, net: 0, sessions: 0, rounds: 0 };
+            const familyNet = p1.net + p2.net;
+
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <div class="bg-[#8C7355] rounded-[3rem] p-10 text-white shadow-xl flex flex-col items-center text-center relative overflow-hidden group">
+                        <div class="absolute top-0 right-0 p-6 opacity-10"><i data-lucide="heart" class="w-[100px] h-[100px]" fill="white"></i></div>
+                        <p class="text-[10px] font-black tracking-widest opacity-60 mb-2 uppercase">Family 2026 Balance</p>
+                        <h2 class="text-5xl font-black mb-4 tracking-tighter">${familyNet >= 0 ? '+' : ''}$${familyNet}</h2>
+                        <div class="bg-white/20 px-5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2"><i data-lucide="check-circle-2" class="w-3"></i> 數據同步中</div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${[NAME_1, NAME_2].map(name => {
+                            const d = players[name] || { win: 0, loss: 0, net: 0, sessions: 0, rounds: 0 };
+                            return `
+                                <div onclick="state.selectedPlayer='${name}'; switchView('report');" class="bg-white rounded-[2.5rem] p-8 shadow-sm border-b-8 border-[#E6D5C3] cursor-pointer hover:translate-y-[-2px] transition-all active:scale-95">
+                                    <div class="flex items-start justify-between mb-6">
+                                        <div class="flex items-center gap-3 pt-1">
+                                            <div class="p-2.5 bg-[#F5E6D3] text-[#8C7355] rounded-2xl shadow-inner"><i data-lucide="user" class="w-[22px]"></i></div>
+                                            <div><span class="font-black text-xl text-[#4A3728] block">${name}</span><span class="text-[10px] text-[#C4B19E] font-bold">年度表現</span></div>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="text-[10px] font-black text-[#C4B19E] uppercase block mb-1">總盈虧</span>
+                                            <div class="text-3xl font-black tracking-tight ${d.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${d.net > 0 ? '+' : ''}${d.net}</div>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3 mb-6">
+                                        <div class="bg-[#FBF8F5] p-3 rounded-2xl text-center border border-[#F5E6D3]/50 shadow-inner"><p class="text-[9px] text-[#C4B19E] font-black uppercase mb-1">贏錢</p><p class="text-lg font-black text-[#8C7355]">$${d.win}</p></div>
+                                        <div class="bg-[#FBF8F5] p-3 rounded-2xl text-center border border-[#F5E6D3]/50 shadow-inner"><p class="text-[9px] text-[#C4B19E] font-black uppercase mb-1">輸錢</p><p class="text-lg font-black text-[#A64B4B]">$${d.loss}</p></div>
+                                    </div>
+                                    <div class="flex justify-between items-center text-[10px] px-1 pt-3 border-t border-dashed border-[#F5E6D3] font-black">
+                                        <div class="flex items-center gap-1.5 text-[#C4B19E]"><i data-lucide="dices" class="w-3"></i><span>${d.sessions} 場 / ${d.rounds} 將</span></div>
+                                        <span class="text-[#C4B19E]">查看明細 ></span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCalendar(container) {
+            const year = state.currentDate.getFullYear();
+            const month = state.currentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDay = new Date(year, month, 1).getDay();
+
+            let calendarGrid = '';
+            for (let i = 0; i < firstDay; i++) calendarGrid += '<div class="h-24"></div>';
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const sessions = state.allSessions.filter(s => s.date === dateKey);
+                const n1 = sessions.reduce((a, s) => a + (Number(s.players.find(p => p.name === NAME_1)?.amount) || 0), 0);
+                const n2 = sessions.reduce((a, s) => a + (Number(s.players.find(p => p.name === NAME_2)?.amount) || 0), 0);
+
+                calendarGrid += `
+                    <div onclick="openModal('${dateKey}')" class="h-24 border border-[#F5E6D3]/50 rounded-xl p-1 cursor-pointer transition-all active:scale-95 ${sessions.length > 0 ? 'bg-white ring-1 ring-[#8C7355]/20 shadow-sm' : 'bg-white/30 hover:bg-[#F5E6D3]/20'}">
+                        <span class="text-[10px] font-black text-[#C4B19E]">${d}</span>
+                        ${sessions.length > 0 ? `
+                            <div class="mt-1 space-y-0.5">
+                                <div class="text-[7px] p-0.5 rounded scale-90 ${n1 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>佩</span> <span>${n1}</span></div>
+                                <div class="text-[7px] p-0.5 rounded scale-90 ${n2 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>翰</span> <span>${n2}</span></div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            container.innerHTML = `
+                <div class="bg-[#FFFDFB] rounded-[2.5rem] p-6 border-8 border-white shadow-sm">
+                    <div class="flex items-center justify-between mb-8">
+                        <button onclick="changeMonth(-1)" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="chevron-left" class="w-5"></i></button>
+                        <div class="text-center"><h2 class="text-lg font-black">${monthNames[month]}</h2><p class="text-[9px] font-black text-[#C4B19E]">2026 CALENDAR</p></div>
+                        <button onclick="changeMonth(1)" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="chevron-right" class="w-5"></i></button>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1">
+                        ${['日', '一', '二', '三', '四', '五', '六'].map(d => `<div class="text-center text-[10px] font-black text-[#C4B19E] mb-2 uppercase">${d}</div>`).join('')}
+                        ${calendarGrid}
+                    </div>
+                </div>
+                <div class="flex gap-3 px-2 mt-4">
+                    <button onclick="exportData()" class="flex-1 py-4 bg-white border-2 border-[#F5E6D3] text-[#8C7355] rounded-[1.5rem] text-xs font-black shadow-sm active:scale-95 flex items-center justify-center gap-2"><i data-lucide="download" class="w-4"></i> 匯出備份</button>
+                    <button onclick="importTrigger()" class="flex-1 py-4 bg-white border-2 border-[#F5E6D3] text-[#8C7355] rounded-[1.5rem] text-xs font-black shadow-sm active:scale-95 flex items-center justify-center gap-2"><i data-lucide="upload" class="w-4"></i> 匯入資料</button>
+                </div>
+                <input type="file" id="file-input" class="hidden" accept=".json">
+            `;
+        }
+
+        window.changeMonth = (delta) => {
+            state.currentDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() + delta, 1);
+            render();
+        };
+
+        function renderReport(container) {
+            const players = calculateStats();
+            if (state.selectedPlayer) {
+                const p = players[state.selectedPlayer];
+                const history = p.history.filter(h => state.detailMonth === 'total' || h.month === state.detailMonth);
+                const stats = history.reduce((acc, curr) => {
+                    acc.sessions++; acc.rounds += Number(curr.rounds); acc.net += curr.amount;
+                    if (curr.amount > 0) acc.wins++; return acc;
+                }, { sessions: 0, rounds: 0, net: 0, wins: 0 });
+
+                container.innerHTML = `
+                    <div class="bg-[#FFFDFB] rounded-[2.5rem] p-6 border-8 border-white shadow-sm min-h-[60vh]">
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+                            <div class="flex items-center gap-4"><button onclick="state.selectedPlayer=null; render();" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="arrow-left" class="w-5"></i></button><div><h2 class="text-xl font-black">${state.selectedPlayer}</h2><p class="text-[10px] font-bold text-[#C4B19E]">Personal Report</p></div></div>
+                            <select onchange="state.detailMonth=this.value; render();" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-4 py-2 text-[#8C7355] outline-none">
+                                <option value="total">全年度</option>
+                                ${monthNames.map((m, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${state.detailMonth === String(i + 1).padStart(2, '0') ? 'selected' : ''}>${m}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 text-center">
+                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30"><p class="text-[8px] font-bold text-[#C4B19E]">場數</p><p class="text-xl font-black text-[#8C7355]">${stats.sessions}</p></div>
+                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30"><p class="text-[8px] font-bold text-[#C4B19E]">勝率</p><p class="text-xl font-black text-[#8C7355]">${stats.sessions > 0 ? (stats.wins / stats.sessions * 100).toFixed(1) : 0}%</p></div>
+                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30"><p class="text-[8px] font-bold text-[#C4B19E]">將數</p><p class="text-xl font-black text-[#8C7355]">${stats.rounds}</p></div>
+                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30"><p class="text-[8px] font-bold text-[#C4B19E]">盈虧</p><p class="text-xl font-black ${stats.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${stats.net}</p></div>
+                        </div>
+                        <div class="space-y-4">
+                            ${history.slice().reverse().map(h => `
+                                <div class="bg-white p-5 rounded-[2rem] border border-[#F5E6D3] shadow-sm">
+                                    <div class="flex justify-between mb-3"><div><span class="text-xs font-black block">${h.date}</span><span class="text-[9px] text-[#C4B19E]">${h.location}</span></div><span class="text-xl font-black ${h.amount >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${h.amount > 0 ? '+' : ''}${h.amount}</span></div>
+                                    <div class="flex items-center gap-2 mb-3 bg-[#FBF8F5] py-2 px-3 rounded-xl"><i data-lucide="users" class="w-3 text-[#8C7355]"></i><span class="text-[10px] text-gray-600 font-medium">${h.opponents.join('、')}</span></div>
+                                    <div class="flex gap-2"><span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.rounds} 將</span><span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.stakes}</span></div>
+                                    ${h.note ? `<div class="mt-3 p-3 bg-[#F0EAD6]/30 rounded-2xl border-l-4 border-[#8C7355] text-[10px] italic">「 ${h.note} 」</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="bg-[#FFFDFB] rounded-[3rem] p-8 border-8 border-white shadow-sm">
+                        <div class="flex justify-between items-center mb-8"><div><h2 class="text-xl font-black">2026 雀神排行</h2><p class="text-[10px] font-bold text-[#C4B19E] tracking-widest uppercase">Rankings</p></div>
+                            <select onchange="state.reportMonth=this.value; render();" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-4 py-2 text-[#8C7355] outline-none">
+                                <option value="total">全年度</option>
+                                ${monthNames.map((m, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${state.reportMonth === String(i + 1).padStart(2, '0') ? 'selected' : ''}>${m}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="space-y-3">
+                            ${Object.entries(players).map(([name, data]) => ({ name, ...data }))
+                                .filter(p => state.reportMonth === 'total' || p.monthlySessions[state.reportMonth] > 0)
+                                .sort((a, b) => {
+                                    const valA = state.reportMonth === 'total' ? a.net : (a.monthly[state.reportMonth] || 0);
+                                    const valB = state.reportMonth === 'total' ? b.net : (b.monthly[state.reportMonth] || 0);
+                                    return valB - valA;
+                                }).map((p, idx) => {
+                                    const net = state.reportMonth === 'total' ? p.net : (p.monthly[state.reportMonth] || 0);
+                                    const winR = state.reportMonth === 'total' ? (p.totalWins/p.sessions*100) : ((p.monthlyWins[state.reportMonth]||0)/(p.monthlySessions[state.reportMonth]||1)*100);
+                                    return `
+                                        <div onclick="state.selectedPlayer='${p.name}'; render();" class="grid grid-cols-12 items-center px-4 py-5 rounded-[2rem] border-2 cursor-pointer transition-all active:scale-95 ${idx === 0 ? 'bg-[#F0EAD6]/40 border-[#8C7355]/20 shadow-sm' : 'bg-white border-transparent shadow-sm'}">
+                                            <div class="col-span-4 flex items-center gap-2"><div class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black ${idx === 0 ? 'bg-[#8C7355] text-white shadow-md' : 'bg-[#F5E6D3] text-[#8C7355]'}">${idx + 1}</div><span class="font-black text-xs truncate">${p.name}</span></div>
+                                            <div class="col-span-2 font-black text-[#C4B19E] text-xs">${state.reportMonth === 'total' ? p.sessions : p.monthlySessions[state.reportMonth]}</div>
+                                            <div class="col-span-3"><span class="text-[10px] font-black text-[#8C7355] px-1.5 py-0.5 bg-[#FBF8F5] rounded-lg border border-[#F5E6D3]">${winR.toFixed(1)}%</span></div>
+                                            <div class="col-span-3 text-right font-black text-sm ${net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${net > 0 ? '+' : ''}${net}</div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function renderMemo(container) {
+            container.innerHTML = `
+                <div class="bg-[#FFFDFB] rounded-[3rem] p-8 border-8 border-white shadow-sm min-h-[70vh] flex flex-col">
+                    <div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-black">備忘錄</h2><p class="text-[10px] font-bold text-[#C4B19E]">Rules & Notes</p></div><button onclick="saveMemo()" id="save-memo-btn" class="bg-[#8C7355] text-white px-6 py-2.5 rounded-full text-xs font-black shadow-lg flex items-center gap-2 active:scale-95 transition-all"><i data-lucide="save" class="w-4"></i> 儲存變更</button></div>
+                    <textarea id="memo-textarea" class="w-full flex-1 bg-[#FBF8F5] border-2 border-[#F5E6D3] rounded-[2rem] p-8 text-sm font-medium leading-relaxed outline-none resize-none focus:ring-2 focus:ring-[#8C7355]/20 shadow-inner" placeholder="在此輸入規則或筆記...">${state.memoData}</textarea>
+                </div>
+            `;
+        }
+
+        // --- 核心操作 ---
+        window.saveMemo = async () => {
+            const btn = document.getElementById('save-memo-btn');
+            const content = document.getElementById('memo-textarea').value;
+            btn.disabled = true; btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
+            try {
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo'), { content, updatedAt: Date.now() });
+                showToast("已儲存");
+            } catch (e) { showToast("儲存失敗"); }
+            btn.disabled = false; btn.innerHTML = '<i data-lucide="save" class="w-4"></i> 儲存變更';
+            lucide.createIcons();
+        };
+
+        window.openModal = (dateStr) => {
+            state.selectedDateStr = dateStr;
+            const existing = state.allSessions.filter(s => s.date === dateStr);
+            state.editingSessions = existing.length > 0 ? JSON.parse(JSON.stringify(existing)) : [{
+                id: "new_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+                date: dateStr, stakes: '30/10', location: '', rounds: 1, note: '',
+                players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }]
+            }];
+            state.isModalOpen = true;
+            renderModal();
+        };
+
+        window.openToday = () => {
+            const today = new Date();
+            const dateStr = `2026-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            openModal(dateStr);
+        };
+
+        window.closeModal = () => {
+            state.deletedIds.clear();
+            state.isModalOpen = false;
+            document.getElementById('modal-container').classList.add('hidden');
+        };
+
+        function renderModal() {
+            const modal = document.getElementById('modal-container');
+            modal.classList.remove('hidden');
+            
+            const summary = {};
+            state.editingSessions.forEach(s => {
+                s.players.forEach(p => {
+                    const n = p.name.trim(); if (!n) return;
+                    if (!summary[n]) summary[n] = { net: 0 };
+                    summary[n].net += Number(p.amount);
+                });
+            });
+
+            modal.innerHTML = `
+                <div class="bg-[#FFFDFB] w-full max-w-4xl h-full md:h-auto md:max-h-[90vh] md:rounded-[3.5rem] flex flex-col overflow-hidden shadow-2xl border-t-[12px] border-[#8C7355]">
+                    <div class="p-6 border-b border-[#F5E6D3] flex justify-between items-center bg-white shadow-sm">
+                        <div class="flex items-center gap-3"><div class="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><i data-lucide="calendar-days" class="w-5"></i></div><h3 class="text-xl font-black">${state.selectedDateStr} 管理</h3></div>
+                        <div class="flex gap-2"><button onclick="addSession()" class="bg-[#A67B5B] text-white w-10 h-10 flex items-center justify-center rounded-xl shadow-md font-black text-2xl">+</button><button onclick="closeModal()" class="bg-[#F5E6D3] p-2 rounded-full text-[#8C7355] shadow-sm"><i data-lucide="x" class="w-5"></i></button></div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-4 space-y-6 bg-[#FBF8F5] no-scrollbar">
+                        <div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/20 shadow-sm">
+                            <h4 class="text-sm font-black text-[#8C7355] uppercase mb-4">今日戰績快報</h4>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                ${Object.entries(summary).map(([name, data]) => `<div class="bg-[#FBF8F5] p-3 rounded-2xl border border-[#F5E6D3] text-center"><span class="text-[9px] font-black text-[#C4B19E] block">${name}</span><span class="text-sm font-black ${data.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${data.net > 0 ? '+' : ''}${data.net}</span></div>`).join('')}
+                            </div>
+                        </div>
+                        ${state.editingSessions.map((s, idx) => `
+                            <div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/30 relative shadow-sm">
+                                <button onclick="deleteSessionImmediate('${s.id}')" class="absolute -top-3 -right-3 bg-white text-rose-500 p-2.5 rounded-full shadow-lg border border-rose-100 active:scale-90"><i data-lucide="trash-2" class="w-[18px]"></i></button>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                    <div class="col-span-2"><label class="text-[10px] font-black text-[#C4B19E] block uppercase">日期</label><input type="date" value="${s.date}" onchange="updateSession(${idx}, 'date', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black"></div>
+                                    <div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">底/台</label><input type="text" value="${s.stakes}" onchange="updateSession(${idx}, 'stakes', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black"></div>
+                                    <div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">將數</label><input type="number" value="${s.rounds}" onchange="updateSession(${idx}, 'rounds', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black"></div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                                    ${s.players.map((p, pIdx) => `
+                                        <div class="flex items-center gap-2 p-3 rounded-2xl border-2 ${pIdx < 2 ? 'bg-[#F5E6D3]/10 border-[#F5E6D3]/50' : 'bg-[#FBF8F5] border-transparent shadow-inner'}">
+                                            <input type="text" value="${p.name}" onchange="updatePlayer(${idx}, ${pIdx}, 'name', this.value)" class="flex-1 bg-transparent border-none text-xs font-black outline-none" placeholder="姓名">
+                                            <div class="bg-white px-3 py-1.5 rounded-xl border border-gray-100 flex items-center shadow-sm">
+                                                <span class="text-[10px] text-[#C4B19E] mr-1">$</span>
+                                                <input type="number" value="${p.amount}" onchange="updatePlayer(${idx}, ${pIdx}, 'amount', this.value)" class="w-16 bg-transparent border-none text-right font-black text-xs outline-none">
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#F5E6D3] pt-4 mt-2">
+                                    <div class="space-y-2"><label class="text-[10px] font-black text-[#8C7355] uppercase flex items-center gap-2"><i data-lucide="message-square" class="w-3"></i> 筆記</label><textarea onchange="updateSession(${idx}, 'note', this.value)" class="w-full bg-[#F5E6D3]/20 border-2 border-dashed border-[#F5E6D3] rounded-2xl p-4 text-[11px] font-medium resize-none h-20 outline-none">${s.note}</textarea></div>
+                                    <div class="flex flex-col justify-end gap-3">
+                                        <div class="p-2 bg-[#FBF8F5] rounded-xl border border-[#F5E6D3]"><label class="text-[9px] font-black text-[#C4B19E] block uppercase">地點</label><input type="text" value="${s.location}" onchange="updateSession(${idx}, 'location', this.value)" class="w-full bg-transparent border-none p-0 text-xs font-black outline-none"></div>
+                                        <div class="px-6 py-2.5 rounded-full inline-flex items-center gap-2 text-[10px] font-black ${s.players.reduce((a, b) => a + Number(b.amount), 0) === 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-500 border border-rose-100'}"><i data-lucide="${s.players.reduce((a, b) => a + Number(b.amount), 0) === 0 ? 'check-circle-2' : 'alert-circle'}" class="w-[14px]"></i><span>核算：${s.players.reduce((a, b) => a + Number(b.amount), 0)}</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="p-4 bg-white border-t border-[#F5E6D3] shadow-lg">
+                        <button onclick="saveToCloud()" id="modal-save-btn" class="w-full py-4 bg-[#8C7355] text-white rounded-[2rem] font-black shadow-lg flex items-center justify-center gap-3 transition-all active:scale-[0.98] transform hover:translate-y-[-1px]"><i data-lucide="save" class="w-5"></i> 儲存變更</button>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        window.updateSession = (idx, key, val) => { state.editingSessions[idx][key] = val; renderModal(); };
+        window.updatePlayer = (idx, pIdx, key, val) => { state.editingSessions[idx].players[pIdx][key] = val; renderModal(); };
+        window.addSession = () => {
+            state.editingSessions.push({ id: "new_" + Date.now(), date: state.selectedDateStr, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] });
+            renderModal();
+        };
+
+        window.deleteSessionImmediate = async (id) => {
+            const isCloud = state.allSessions.some(s => s.id === id);
+            if (!isCloud) { state.editingSessions = state.editingSessions.filter(s => s.id !== id); renderModal(); return; }
+            if (!confirm('確定刪除此場次？')) return;
+            state.deletedIds.add(id);
+            state.editingSessions = state.editingSessions.filter(s => s.id !== id);
+            renderModal();
+            try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id)); showToast("已刪除"); }
+            catch (e) { showToast("刪除失敗"); state.deletedIds.delete(id); }
+        };
+
+        window.saveToCloud = async () => {
+            const btn = document.getElementById('modal-save-btn');
+            btn.disabled = true; btn.innerHTML = '<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>';
+            try {
+                const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state');
+                await setDoc(backupRef, { content: JSON.stringify(state.allSessions), timestamp: Date.now() });
+                for (const s of state.editingSessions) {
+                    if (state.deletedIds.has(s.id)) continue;
+                    const { id, ...rest } = s;
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
+                }
+                closeModal(); showToast("儲存成功");
+            } catch (e) { showToast("儲存失敗"); }
+            btn.disabled = false; btn.innerHTML = '<i data-lucide="save" class="w-5"></i> 儲存變更';
+            lucide.createIcons();
+        };
+
+        window.handleRestore = async () => {
+            if (!confirm('還原到上一步？這會覆蓋目前資料。')) return;
+            document.getElementById('loading-screen').classList.remove('hidden');
+            document.getElementById('loading-text').textContent = '正在還原...';
+            try {
+                const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state'));
+                if (!snap.exists()) throw new Error();
+                const current = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'sessions'));
+                for (const d of current.docs) await deleteDoc(d.ref);
+                const backup = JSON.parse(snap.data().content);
+                for (const s of backup) {
+                    const { id, ...rest } = s;
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
+                }
+                showToast("還原成功");
+            } catch (e) { showToast("還原失敗"); }
+            document.getElementById('loading-screen').classList.add('hidden');
+        };
+
+        window.exportData = () => {
+            const blob = new Blob([JSON.stringify(state.allSessions, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'mahjong_2026.json'; a.click(); URL.revokeObjectURL(url);
+        };
+
+        window.importTrigger = () => document.getElementById('file-input').click();
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader(); reader.onload = async (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    for (const s of data) {
+                        const { id, ...rest } = s;
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
+                    }
+                    showToast("匯入成功");
+                } catch (err) { showToast("匯入格式錯誤"); }
+            };
+            reader.readAsText(file);
+        });
+
+        // 啟動認證與監聽
+        initAuth();
+
+    </script>
+</body>
+</html>
