@@ -136,7 +136,7 @@
             reportMonth: 'total',
             detailMonth: 'total',
             isModalOpen: false,
-            rankFilterLocations: [] // 調整為儲存篩選的地點
+            rankFilterLocations: [] 
         };
 
         window.state = state;
@@ -196,17 +196,13 @@
             }
         });
 
-        // --- 核心邏輯：計算玩家戰績 (支援地點與月份過濾) ---
+        // --- 核心邏輯：計算戰績 ---
         function calculateStats(targetLocations = [], targetMonth = 'total') {
             const players = {};
             state.allSessions.forEach(session => {
                 const month = session.date.split('-')[1];
                 const location = session.location || "未填寫";
-                
-                // 檢查是否符合月份篩選
                 if (targetMonth !== 'total' && month !== targetMonth) return;
-                
-                // 檢查是否符合地點篩選 (若 targetLocations 為空則全顯示)
                 if (targetLocations.length > 0 && !targetLocations.includes(location)) return;
 
                 const opponentNames = session.players.map(p => p.name.trim()).filter(n => n);
@@ -264,6 +260,7 @@
             render();
         };
 
+        // 重要：修正 ReferenceError，將渲染函式掛載到全域
         function render() {
             const container = document.getElementById('view-container');
             if (!container) return;
@@ -280,6 +277,7 @@
             else if (state.view === 'memo') renderMemo(container);
             lucide.createIcons();
         }
+        window.render = render;
 
         function renderHome(container) {
             const stats = calculateStats();
@@ -362,32 +360,25 @@
         }
 
         function renderReport(container) {
-            // 每次重新計算過濾後的統計資料
             const filteredStats = calculateStats(state.rankFilterLocations, state.reportMonth);
-            // 用來渲染地點篩選清單的所有地點
             const allLocations = [...new Set(state.allSessions.map(s => s.location || "未填寫"))].sort();
 
             if (state.selectedPlayer && filteredStats[state.selectedPlayer]) {
                 const p = filteredStats[state.selectedPlayer];
-                const s = {
-                    sess: p.sessions,
-                    rds: p.rounds,
-                    net: p.net,
-                    wins: p.totalWins
-                };
+                const s = { sess: p.sessions, rds: p.rounds, net: p.net, wins: p.totalWins };
                 
                 container.innerHTML = `
                     <div class="bg-[#FFFDFB] rounded-[2.5rem] p-6 border-8 border-white shadow-sm min-h-[60vh]">
                         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
                             <div class="flex items-center gap-4">
-                                <button onclick="window.state.selectedPlayer=null; render()" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="arrow-left" class="w-5"></i></button>
+                                <button onclick="window.state.selectedPlayer=null; window.render()" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="arrow-left" class="w-5"></i></button>
                                 <div>
                                     <h2 class="text-xl font-black text-[#4A3728]">${state.selectedPlayer}</h2>
                                     <p class="text-[10px] font-bold text-[#C4B19E] uppercase tracking-widest">${state.reportMonth === 'total' ? '全年度' : monthNames[parseInt(state.reportMonth)-1]}數據</p>
                                 </div>
                             </div>
                             <div class="text-[10px] font-black text-[#8C7355] bg-[#FBF8F5] px-3 py-1 rounded-lg border border-[#F5E6D3]">
-                                篩選範圍：${state.rankFilterLocations.length === 0 ? '所有地點' : state.rankFilterLocations.join('、')}
+                                地點：${state.rankFilterLocations.length === 0 ? '全部' : state.rankFilterLocations.join('、')}
                             </div>
                         </div>
 
@@ -421,16 +412,15 @@
                     <div class="bg-[#FFFDFB] rounded-[3rem] p-8 border-8 border-white shadow-sm min-h-[60vh]">
                         <div class="flex justify-between items-center mb-6">
                             <div><h2 class="text-xl font-black">地點戰績排行</h2><p class="text-[10px] font-bold text-[#C4B19E] tracking-widest uppercase">Location Ranking</p></div>
-                            <select onchange="window.state.reportMonth=this.value; render()" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-4 py-2.5 text-[#8C7355] border-none outline-none cursor-pointer select-custom shadow-sm mr-2">
-                                <option value="total" ${state.reportMonth === 'total' ? 'selected' : ''}>全年度</option>
+                            <select onchange="window.state.reportMonth=this.value; window.render()" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-6 py-2.5 text-[#8C7355] border-none outline-none cursor-pointer select-custom shadow-sm mr-2">
+                                <option value="total" ${state.reportMonth === 'total' ? 'selected' : ''}>全年度排行</option>
                                 ${monthNames.map((m, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${state.reportMonth === String(i + 1).padStart(2, '0') ? 'selected' : ''}>${m}</option>`).join('')}
                             </select>
                         </div>
 
-                        <!-- 地點篩選列 -->
                         <div class="mb-8 overflow-hidden">
                             <div class="flex items-center justify-between mb-2 px-1">
-                                <label class="text-[10px] font-black text-[#C4B19E] uppercase flex items-center gap-1.5"><i data-lucide="map-pin" class="w-3"></i> 選擇對戰地點 ${state.rankFilterLocations.length > 0 ? `(${state.rankFilterLocations.length})` : ''}</label>
+                                <label class="text-[10px] font-black text-[#C4B19E] uppercase flex items-center gap-1.5"><i data-lucide="map-pin" class="w-3"></i> 選擇地點 ${state.rankFilterLocations.length > 0 ? `(${state.rankFilterLocations.length})` : ''}</label>
                                 ${state.rankFilterLocations.length > 0 ? `<button onclick="window.clearRankFilter()" class="text-[9px] font-bold text-[#A64B4B] hover:underline">顯示所有</button>` : ''}
                             </div>
                             <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
@@ -460,7 +450,7 @@
                                         <div class="col-span-3 text-right font-black text-sm pr-6 ${p.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${p.net > 0 ? '+' : ''}${p.net}</div>
                                     </div>`;
                                 }).join('')}
-                            ${Object.keys(filteredStats).length === 0 ? '<div class="py-20 text-center opacity-30 italic text-sm">該篩選範圍內尚無對戰資料</div>' : ''}
+                            ${Object.keys(filteredStats).length === 0 ? '<div class="py-20 text-center opacity-30 italic text-sm">該條件下尚無對戰資料</div>' : ''}
                         </div>
                     </div>
                 `;
@@ -543,20 +533,19 @@
             lucide.createIcons();
         }
 
-        // --- 核心操作：更新與同步 ---
         window.updateSession = (i, k, v) => { state.editingSessions[i][k] = v; renderModal(); };
         window.updatePlayer = (i, pi, k, v) => { state.editingSessions[i].players[pi][k] = v; renderModal(); };
         window.addSessionToEdit = () => { state.editingSessions.push({ id: "new_" + Date.now(), date: state.selectedDateStr, stakes: DEFAULT_STAKES, location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }); renderModal(); };
 
         window.deleteSessionImmediate = async (id) => {
-            if (state.allSessions.some(s => s.id === id) && !confirm("確定永久刪除此場次？資料將立即從雲端移除。")) return;
+            if (state.allSessions.some(s => s.id === id) && !confirm("確定永久刪除？")) return;
             state.deletedIds.add(id); state.editingSessions = state.editingSessions.filter(s => s.id !== id);
-            renderModal(); try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id)); showToast("已刪除紀錄"); } catch (e) { state.deletedIds.delete(id); }
+            renderModal(); try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id)); showToast("已刪除"); } catch (e) { state.deletedIds.delete(id); }
         };
 
         window.saveToCloud = async () => {
             const btn = document.getElementById('modal-save-btn'); if (!btn) return;
-            btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin w-5"></i> 正在儲存...'; lucide.createIcons();
+            btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin w-5"></i>'; lucide.createIcons();
             try {
                 const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state');
                 await setDoc(backupRef, { content: JSON.stringify(state.allSessions), timestamp: Date.now() });
@@ -565,13 +554,13 @@
                         const { id, ...rest } = s; await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
                     }
                 }
-                window.closeModal(); showToast("資料儲存成功");
-            } catch (e) { showToast("儲存失敗，請檢查權限"); }
+                window.closeModal(); showToast("儲存成功");
+            } catch (e) { showToast("儲存失敗"); }
             btn.disabled = false; btn.innerHTML = '<i data-lucide="save" class="w-5"></i> 儲存並同步'; lucide.createIcons();
         };
 
         window.handleRestore = async () => {
-            if (!confirm("確定還原到上一步紀錄？")) return;
+            if (!confirm("還原到上一步紀錄？")) return;
             document.getElementById('loading-overlay').classList.remove('hidden');
             try {
                 const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state');
@@ -590,7 +579,7 @@
         window.exportData = () => {
             const b = new Blob([JSON.stringify(state.allSessions, null, 2)], { type: 'application/json' });
             const u = URL.createObjectURL(b); const a = document.createElement('a');
-            a.href = u; a.download = `mahjong_diary_2026_backup.json`; a.click(); URL.revokeObjectURL(u);
+            a.href = u; a.download = `mahjong_2026.json`; a.click(); URL.revokeObjectURL(u);
         };
 
         window.importTrigger = () => { const fi = document.getElementById('file-input'); if (fi) fi.click(); };
@@ -601,7 +590,7 @@
                     const data = JSON.parse(evt.target.result);
                     for (const s of data) { const { id, ...rest } = s; await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest); }
                     showToast("匯入成功");
-                } catch (err) { showToast("檔案格式錯誤"); }
+                } catch (err) { showToast("格式錯誤"); }
             }; r.readAsText(f);
         });
 
