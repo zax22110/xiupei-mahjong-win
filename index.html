@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide 圖示 -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS 匯出 Excel 用 -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
         body {
@@ -35,21 +37,26 @@
             color: white;
             border-color: #8C7355;
         }
+        .player-preset-btn.active {
+            background-color: #8C7355;
+            color: white;
+            border-color: #8C7355;
+        }
     </style>
 </head>
-<body class="pb-32 overflow-x-hidden">
+<body class="pb-32 overflow-x-hidden text-sm sm:text-base">
 
     <div id="app" class="max-w-3xl mx-auto p-4">
         <!-- 載入中遮罩 -->
         <div id="loading-overlay" class="fixed inset-0 z-[2000] bg-[#F5E6D3] flex flex-col items-center justify-center gap-4">
             <div class="w-12 h-12 border-4 border-[#8C7355] border-t-transparent rounded-full animate-spin"></div>
-            <p id="loading-text" class="font-black text-[#8C7355] tracking-widest">資料同步中...</p>
+            <p id="loading-text" class="font-black text-[#8C7355] tracking-widest">初始化資料庫...</p>
         </div>
 
         <!-- 頂部導覽 -->
         <header class="relative flex items-center justify-center h-16 mb-8 pt-4">
             <div class="absolute left-0">
-                <button onclick="handleRestore()" class="w-10 h-10 flex items-center justify-center bg-white text-[#8C7355] border border-[#E6D5C3] rounded-full shadow-sm hover:bg-[#F5E6D3] transition-all active:scale-90" title="還原備份">
+                <button onclick="window.handleRestore()" class="w-10 h-10 flex items-center justify-center bg-white text-[#8C7355] border border-[#E6D5C3] rounded-full shadow-sm hover:bg-[#F5E6D3] transition-all active:scale-90" title="還原備份">
                     <i data-lucide="rotate-ccw" class="w-[18px]"></i>
                 </button>
             </div>
@@ -58,7 +65,7 @@
                 <h1 class="text-base font-black text-[#4A3728] whitespace-nowrap tracking-tight">2026 麻將日誌</h1>
             </div>
             <div class="absolute right-0">
-                <button onclick="openToday()" class="w-10 h-10 flex items-center justify-center bg-[#8C7355] text-white rounded-full shadow-lg transition-all active:scale-90" title="新增紀錄">
+                <button onclick="window.openToday()" class="w-10 h-10 flex items-center justify-center bg-[#8C7355] text-white rounded-full shadow-lg transition-all active:scale-90" title="新增紀錄">
                     <i data-lucide="plus" class="w-[18px]" style="stroke-width: 3px;"></i>
                 </button>
             </div>
@@ -68,22 +75,30 @@
         <main id="view-container" class="animate-in"></main>
 
         <!-- 底部導覽列 -->
-        <nav class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-6 py-4 rounded-full shadow-2xl border border-[#E6D5C3] flex gap-8 z-40">
-            <button onclick="switchView('home')" id="nav-home" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
-                <i data-lucide="home" class="w-[22px]"></i>
-                <span class="text-[9px] font-black uppercase">總覽</span>
+        <nav class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-4 sm:px-6 py-4 rounded-full shadow-2xl border border-[#E6D5C3] flex gap-3 sm:gap-6 z-40">
+            <button onclick="window.switchView('home')" id="nav-home" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
+                <i data-lucide="layout-dashboard" class="w-[18px] sm:w-[20px]"></i>
+                <span class="text-[8px] font-black uppercase">總覽</span>
             </button>
-            <button onclick="switchView('calendar')" id="nav-calendar" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
-                <i data-lucide="calendar" class="w-[22px]"></i>
-                <span class="text-[9px] font-black uppercase">日誌</span>
+            <button onclick="window.switchView('calendar')" id="nav-calendar" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
+                <i data-lucide="calendar" class="w-[18px] sm:w-[20px]"></i>
+                <span class="text-[8px] font-black uppercase">麻將</span>
             </button>
-            <button onclick="switchView('report', true)" id="nav-report" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
-                <i data-lucide="bar-chart-2" class="w-[22px]"></i>
-                <span class="text-[9px] font-black uppercase">排行</span>
+            <button onclick="window.switchView('report', true)" id="nav-report" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
+                <i data-lucide="bar-chart-3" class="w-[18px] sm:w-[20px]"></i>
+                <span class="text-[8px] font-black uppercase text-center leading-tight">麻將<br>排行</span>
             </button>
-            <button onclick="switchView('memo')" id="nav-memo" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
-                <i data-lucide="book-open" class="w-[22px]"></i>
-                <span class="text-[9px] font-black uppercase">備忘</span>
+            <button onclick="window.switchView('reddot')" id="nav-reddot" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
+                <i data-lucide="gamepad-2" class="w-[18px] sm:w-[20px]"></i>
+                <span class="text-[8px] font-black uppercase">紅點</span>
+            </button>
+            <button onclick="window.switchView('reddot_rank')" id="nav-reddot_rank" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
+                <i data-lucide="award" class="w-[18px] sm:w-[20px]"></i>
+                <span class="text-[8px] font-black uppercase text-center leading-tight">紅點<br>排行</span>
+            </button>
+            <button onclick="window.switchView('memo')" id="nav-memo" class="flex flex-col items-center gap-1 transition-all text-[#D9C5B2]">
+                <i data-lucide="book-open" class="w-[18px] sm:w-[20px]"></i>
+                <span class="text-[8px] font-black uppercase">備忘</span>
             </button>
         </nav>
     </div>
@@ -95,16 +110,14 @@
     </div>
 
     <!-- Toast -->
-    <div id="toast" class="hidden fixed top-10 left-1/2 -translate-x-1/2 z-[3000] bg-[#4A3728] text-white px-8 py-3 rounded-full shadow-2xl font-bold transition-all"></div>
+    <div id="toast" class="hidden fixed top-10 left-1/2 -translate-x-1/2 z-[3000] bg-[#4A3728] text-white px-8 py-3 rounded-full shadow-2xl font-bold transition-all text-sm"></div>
 
-    <!-- 檔案輸入 -->
     <input type="file" id="file-input" class="hidden" accept=".json">
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, collection, onSnapshot, setDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
         // --- Firebase 配置 ---
         const firebaseConfig = {
@@ -127,11 +140,13 @@
             user: null,
             view: 'home',
             allSessions: [],
+            redDotSessions: [],
             memoData: '',
             currentDate: new Date(2026, 0, 1),
             selectedPlayer: null,
             deletedIds: new Set(),
             editingSessions: [],
+            editingRedDot: null,
             selectedDateStr: '',
             reportMonth: 'total',
             detailMonth: 'total',
@@ -144,38 +159,59 @@
         const NAME_1 = "肅佩";
         const NAME_2 = "泓翰";
         const DEFAULT_STAKES = "50/20";
+        const RED_DOT_PRESETS = ["肅佩", "泓翰", "祥一", "靜譊", "阿鄉"];
         const monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
 
-        // --- UI 工具 ---
-        function showToast(msg) {
+        // --- 全域函式 ---
+        window.showToast = (msg) => {
             const t = document.getElementById('toast');
             if (!t) return;
             t.textContent = msg;
             t.classList.remove('hidden');
             setTimeout(() => { if(t) t.classList.add('hidden'); }, 3000);
-        }
-        window.showToast = showToast;
+        };
 
-        // --- 驗證 ---
+        window.switchView = (v, resetPlayer = true) => {
+            state.view = v;
+            if (resetPlayer) {
+                state.selectedPlayer = null;
+                state.reportMonth = 'total';
+                state.rankFilterLocations = []; 
+            }
+            window.render();
+        };
+
+        window.changeMonth = (delta) => { 
+            state.currentDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() + delta, 1); 
+            window.render(); 
+        };
+
+        window.toggleLocationFilter = (locName) => {
+            const index = state.rankFilterLocations.indexOf(locName);
+            if (index > -1) { state.rankFilterLocations.splice(index, 1); }
+            else { state.rankFilterLocations.push(locName); }
+            window.render();
+        };
+
+        window.clearRankFilter = () => {
+            state.rankFilterLocations = [];
+            window.render();
+        };
+
+        // --- 認證與監聽 ---
         async function initAuth() {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    try {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } catch (e) {
-                        await signInAnonymously(auth);
-                    }
-                } else {
-                    await signInAnonymously(auth);
-                }
+                    try { await signInWithCustomToken(auth, __initial_auth_token); } 
+                    catch (e) { await signInAnonymously(auth); }
+                } else { await signInAnonymously(auth); }
             } catch (e) { console.error("Auth Error", e); }
         }
 
         onAuthStateChanged(auth, (user) => {
             state.user = user;
             if (user) {
-                const sessionsCol = collection(db, 'artifacts', appId, 'public', 'data', 'sessions');
-                onSnapshot(sessionsCol, (snapshot) => {
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'sessions'), (snapshot) => {
                     const data = [];
                     snapshot.forEach(docSnap => {
                         if (!state.deletedIds.has(docSnap.id)) {
@@ -188,132 +224,137 @@
                     render();
                 });
 
-                const memoDoc = doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo');
-                onSnapshot(memoDoc, (docSnap) => {
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'reddot_sessions_v2'), (snapshot) => {
+                    const data = [];
+                    snapshot.forEach(docSnap => {
+                        data.push({ id: docSnap.id, ...docSnap.data() });
+                    });
+                    data.sort((a, b) => b.date.localeCompare(a.date));
+                    state.redDotSessions = data;
+                    render();
+                });
+
+                onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo'), (docSnap) => {
                     if (docSnap.exists()) state.memoData = docSnap.data().content;
                     if (state.view === 'memo') render();
                 });
             }
         });
 
-        // --- 核心邏輯：計算戰績 ---
+        // --- 數據統計 ---
         function calculateStats(targetLocations = [], targetMonth = 'total') {
             const players = {};
             state.allSessions.forEach(session => {
                 const month = session.date.split('-')[1];
                 const location = session.location || "未填寫";
+
+                // 月份過濾
                 if (targetMonth !== 'total' && month !== targetMonth) return;
+                // 地點過濾 (若傳入 targetLocations 則進行過濾)
                 if (targetLocations.length > 0 && !targetLocations.includes(location)) return;
 
                 const opponentNames = session.players.map(p => p.name.trim()).filter(n => n);
                 session.players.forEach(p => {
                     const name = p.name.trim();
                     if (!name) return;
-                    if (!players[name]) {
-                        players[name] = { 
-                            win: 0, loss: 0, net: 0, sessions: 0, rounds: 0, 
-                            totalWins: 0, history: []
-                        };
-                    }
+                    if (!players[name]) players[name] = { win: 0, loss: 0, net: 0, sessions: 0, rounds: 0, totalWins: 0, history: [] };
                     const amt = Number(p.amount || 0);
                     players[name].sessions += 1;
                     players[name].rounds += Number(session.rounds || 0);
                     players[name].net += amt;
-                    if (amt > 0) {
-                        players[name].win += amt;
-                        players[name].totalWins += 1;
-                    } else if (amt < 0) {
-                        players[name].loss += Math.abs(amt);
-                    }
-                    players[name].history.push({
-                        id: session.id, date: session.date, month, location: location,
-                        rounds: session.rounds, stakes: session.stakes, amount: amt, note: session.note || "",
-                        opponents: opponentNames.filter(n => n !== name)
-                    });
+                    if (amt > 0) { players[name].win += amt; players[name].totalWins += 1; }
+                    else if (amt < 0) { players[name].loss += Math.abs(amt); }
+                    players[name].history.push({ id: session.id, date: session.date, month, location, rounds: session.rounds, stakes: session.stakes, amount: amt, note: session.note || "", opponents: opponentNames.filter(n => n !== name) });
                 });
             });
             return players;
         }
 
-        window.switchView = (v, resetPlayer = true) => {
-            state.view = v;
-            if (resetPlayer) {
-                state.selectedPlayer = null;
-                state.reportMonth = 'total';
-                state.rankFilterLocations = []; 
-            }
-            render();
-        };
+        function calculateRedDotRanking() {
+            const players = {};
+            state.redDotSessions.forEach(session => {
+                session.players.forEach(p => {
+                    if (!players[p.name]) players[p.name] = { net: 0, sessions: 0 };
+                    players[p.name].net += (Number(p.amount) || 0);
+                    players[p.name].sessions += 1;
+                });
+            });
+            return players;
+        }
 
-        window.toggleLocationFilter = (locName) => {
-            const index = state.rankFilterLocations.indexOf(locName);
-            if (index > -1) {
-                state.rankFilterLocations.splice(index, 1);
-            } else {
-                state.rankFilterLocations.push(locName);
-            }
-            render();
-        };
-
-        window.clearRankFilter = () => {
-            state.rankFilterLocations = [];
-            render();
-        };
-
-        // 重要：修正 ReferenceError，將渲染函式掛載到全域
+        // --- 渲染路由 ---
         function render() {
             const container = document.getElementById('view-container');
             if (!container) return;
             container.innerHTML = '';
-            ['home', 'calendar', 'report', 'memo'].forEach(id => {
-                const btn = document.getElementById(`nav-${id}`);
-                if (!btn) return;
-                if (state.view === id) { btn.classList.add('text-[#8C7355]', 'scale-110'); btn.classList.remove('text-[#D9C5B2]'); }
-                else { btn.classList.remove('text-[#8C7355]', 'scale-110'); btn.classList.add('text-[#D9C5B2]'); }
-            });
             if (state.view === 'home') renderHome(container);
             else if (state.view === 'calendar') renderCalendar(container);
             else if (state.view === 'report') renderReport(container);
+            else if (state.view === 'reddot') renderRedDot(container);
+            else if (state.view === 'reddot_rank') renderRedDotRank(container);
             else if (state.view === 'memo') renderMemo(container);
             lucide.createIcons();
         }
         window.render = render;
 
         function renderHome(container) {
-            const stats = calculateStats();
-            const p1 = stats[NAME_1] || { net: 0, win: 0, loss: 0, sessions: 0, rounds: 0 };
-            const p2 = stats[NAME_2] || { net: 0, win: 0, loss: 0, sessions: 0, rounds: 0 };
-            const familyNet = p1.net + p2.net;
+            const statsM = calculateStats();
+            const statsR = calculateRedDotRanking();
+
+            const getCombinedData = (name) => {
+                const mahjongNet = (statsM[name]?.net || 0);
+                const redDotNet = (statsR[name]?.net || 0);
+                return {
+                    mahjong: mahjongNet,
+                    reddot: redDotNet,
+                    total: mahjongNet + redDotNet,
+                    sessions: (statsM[name]?.sessions || 0)
+                };
+            };
+
+            const p1 = getCombinedData(NAME_1);
+            const p2 = getCombinedData(NAME_2);
+            const familyTotal = p1.total + p2.total;
+
             container.innerHTML = `
                 <div class="space-y-6">
-                    <div class="bg-[#8C7355] rounded-[3rem] p-10 text-white shadow-xl flex flex-col items-center text-center relative overflow-hidden group">
+                    <div class="bg-[#8C7355] rounded-[3rem] p-10 text-white shadow-xl text-center relative overflow-hidden group">
                         <div class="absolute top-0 right-0 p-6 opacity-10"><i data-lucide="heart" class="w-24 h-24" fill="white"></i></div>
-                        <p class="text-[10px] font-black tracking-widest opacity-60 mb-2 uppercase">Family 2026 Balance</p>
-                        <h2 class="text-5xl font-black mb-4 tracking-tighter">${familyNet >= 0 ? '+' : ''}$${familyNet}</h2>
-                        <div class="bg-white/20 px-5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 mb-2"><i data-lucide="check-circle-2" class="w-3"></i> 數據同步中</div>
+                        <p class="text-[10px] font-black tracking-widest opacity-60 mb-2 uppercase">Family 2026 Combined Balance</p>
+                        <h2 class="text-5xl font-black mb-4 tracking-tighter">${familyTotal >= 0 ? '+' : ''}$${familyTotal}</h2>
+                        <div class="bg-white/20 px-5 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-2 mb-2"><i data-lucide="check-circle-2" class="w-3"></i> 數據雲端同步中</div>
                     </div>
+                    
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         ${[NAME_1, NAME_2].map(name => {
-                            const d = stats[name] || { net: 0, win: 0, loss: 0, sessions: 0, rounds: 0 };
+                            const d = getCombinedData(name);
                             return `
                                 <div onclick="window.state.selectedPlayer='${name}'; window.state.detailMonth='total'; window.switchView('report', false)" class="bg-white rounded-[2.5rem] p-8 shadow-sm border-b-8 border-[#E6D5C3] cursor-pointer hover:-translate-y-1 transition-all active:scale-95">
                                     <div class="flex items-start justify-between mb-6">
                                         <div class="flex items-center gap-3 pt-1">
                                             <div class="p-2.5 bg-[#F5E6D3] text-[#8C7355] rounded-2xl shadow-inner"><i data-lucide="user" class="w-5"></i></div>
-                                            <div><span class="font-black text-xl text-[#4A3728] block">${name}</span><span class="text-[10px] text-[#C4B19E] font-bold uppercase">Family Rank</span></div>
-                                        </div>
-                                        <div class="text-right">
-                                            <span class="text-[10px] font-black text-[#C4B19E] uppercase block mb-1">年度盈虧</span>
-                                            <div class="text-3xl font-black tracking-tight ${d.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${d.net > 0 ? '+' : ''}${d.net}</div>
+                                            <div><span class="font-black text-xl text-[#4A3728] block">${name}</span><span class="text-[10px] text-[#C4B19E] font-bold uppercase">個人盈虧統計</span></div>
                                         </div>
                                     </div>
-                                    <div class="grid grid-cols-2 gap-3 mb-6">
-                                        <div class="bg-[#FBF8F5] p-3 rounded-2xl text-center border border-[#F5E6D3]/50 shadow-inner"><p class="text-[9px] text-[#C4B19E] font-black uppercase mb-1">贏錢</p><p class="text-lg font-black text-[#8C7355]">$${d.win}</p></div>
-                                        <div class="bg-[#FBF8F5] p-3 rounded-2xl text-center border border-[#F5E6D3]/50 shadow-inner"><p class="text-[9px] text-[#C4B19E] font-black uppercase mb-1">輸錢</p><p class="text-lg font-black text-[#A64B4B]">$${d.loss}</p></div>
+                                    
+                                    <div class="space-y-3 mb-6">
+                                        <div class="flex justify-between items-center bg-[#FBF8F5] p-3 rounded-2xl border border-[#F5E6D3]/30">
+                                            <span class="text-[11px] font-black text-[#8C7355]">麻將</span>
+                                            <span class="text-sm font-black ${d.mahjong >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${d.mahjong > 0 ? '+' : ''}${d.mahjong}</span>
+                                        </div>
+                                        <div class="flex justify-between items-center bg-[#FBF8F5] p-3 rounded-2xl border border-[#F5E6D3]/30">
+                                            <span class="text-[11px] font-black text-[#8C7355]">撿紅點</span>
+                                            <span class="text-sm font-black ${d.reddot >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${d.reddot > 0 ? '+' : ''}${d.reddot}</span>
+                                        </div>
+                                        <div class="flex justify-between items-center bg-[#8C7355]/5 p-3 rounded-2xl border border-[#8C7355]/20 ring-1 ring-[#8C7355]/10">
+                                            <span class="text-[11px] font-black text-[#8C7355] uppercase">總計加總</span>
+                                            <span class="text-lg font-black ${d.total >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${d.total > 0 ? '+' : ''}${d.total}</span>
+                                        </div>
                                     </div>
-                                    <div class="flex justify-between items-center text-[10px] px-1 pt-3 border-t border-dashed border-[#F5E6D3] font-black">
-                                        <div class="flex items-center gap-1.5 text-[#C4B19E]"><i data-lucide="dices" class="w-3"></i><span>${d.sessions} 場 / ${d.rounds} 將</span></div>
-                                        <span class="text-[#C4B19E]">詳情 ></span>
+
+                                    <div class="flex justify-between items-center text-[10px] px-1 pt-3 border-t border-dashed border-[#F5E6D3] font-black text-[#C4B19E]">
+                                        <span>麻將參戰 ${d.sessions} 場</span>
+                                        <span>查看麻將明細 ></span>
                                     </div>
                                 </div>
                             `;
@@ -333,77 +374,99 @@
                 const sess = state.allSessions.filter(s => s.date === dk);
                 const n1 = sess.reduce((a, s) => a + (Number(s.players.find(p => p.name === NAME_1)?.amount) || 0), 0);
                 const n2 = sess.reduce((a, s) => a + (Number(s.players.find(p => p.name === NAME_2)?.amount) || 0), 0);
-                gridHTML += `
-                    <div onclick="openModal('${dk}')" class="h-24 border border-[#F5E6D3]/50 rounded-xl p-1 cursor-pointer transition-all active:scale-95 ${sess.length > 0 ? 'bg-white ring-1 ring-[#8C7355]/20 shadow-sm' : 'bg-white/30 hover:bg-[#F5E6D3]/20'}">
-                        <span class="text-[10px] font-black text-[#C4B19E]">${d}</span>
-                        ${sess.length > 0 ? `<div class="mt-1 space-y-0.5 overflow-hidden"><div class="text-[7px] p-0.5 rounded truncate scale-90 origin-left ${n1 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>佩</span> <span>${n1}</span></div><div class="text-[7px] p-0.5 rounded truncate scale-90 origin-left ${n2 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>翰</span> <span>${n2}</span></div></div>` : ''}
-                    </div>
-                `;
+                gridHTML += `<div onclick="window.openModal('${dk}')" class="h-24 border border-[#F5E6D3]/50 rounded-xl p-1 cursor-pointer transition-all active:scale-95 ${sess.length > 0 ? 'bg-white ring-1 ring-[#8C7355]/20 shadow-sm' : 'bg-white/30 hover:bg-[#F5E6D3]/20'}">
+                    <span class="text-[10px] font-black text-[#C4B19E]">${d}</span>
+                    ${sess.length > 0 ? `<div class="mt-1 space-y-0.5 overflow-hidden"><div class="text-[7px] p-0.5 rounded truncate scale-90 origin-left ${n1 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>佩</span> <span>${n1}</span></div><div class="text-[7px] p-0.5 rounded truncate scale-90 origin-left ${n2 >= 0 ? 'bg-[#F0EAD6] text-[#8C7355]' : 'bg-[#FBEBEB] text-[#A64B4B]'}"><span>翰</span> <span>${n2}</span></div></div>` : ''}
+                </div>`;
             }
             container.innerHTML = `
-                <div class="bg-[#FFFDFB] rounded-[2.5rem] p-6 border-8 border-white shadow-sm">
-                    <div class="flex items-center justify-between mb-8">
-                        <button onclick="window.changeMonth(-1)" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="chevron-left" class="w-5"></i></button>
-                        <div class="text-center"><h2 class="text-lg font-black">${monthNames[m]}</h2><p class="text-[9px] font-black text-[#C4B19E]">2026 CALENDAR</p></div>
-                        <button onclick="window.changeMonth(1)" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="chevron-right" class="w-5"></i></button>
+                <div class="space-y-4">
+                    <div class="bg-[#FFFDFB] rounded-[2.5rem] p-6 border-8 border-white shadow-sm">
+                        <div class="flex items-center justify-between mb-8"><button onclick="window.changeMonth(-1)" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="chevron-left" class="w-5"></i></button><div class="text-center"><h2 class="text-lg font-black">${monthNames[m]}</h2><p class="text-[9px] font-black text-[#C4B19E]">2026 MAHJONG LOG</p></div><button onclick="window.changeMonth(1)" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="chevron-right" class="w-5"></i></button></div>
+                        <div class="grid grid-cols-7 gap-1">${['日', '一', '二', '三', '四', '五', '六'].map(d => `<div class="text-center text-[10px] font-black text-[#C4B19E] mb-2 uppercase">${d}</div>`).join('')}${gridHTML}</div>
                     </div>
-                    <div class="grid grid-cols-7 gap-1">
-                        ${['日', '一', '二', '三', '四', '五', '六'].map(d => `<div class="text-center text-[10px] font-black text-[#C4B19E] mb-2 uppercase">${d}</div>`).join('')}
-                        ${gridHTML}
-                    </div>
-                </div>
-                <div class="flex gap-3 px-2 mt-4">
-                    <button onclick="exportData()" class="flex-1 py-4 bg-white border-2 border-[#F5E6D3] text-[#8C7355] rounded-[1.5rem] text-xs font-black shadow-sm active:scale-95 flex items-center justify-center gap-2"><i data-lucide="download" class="w-4"></i> 匯出備份</button>
-                    <button onclick="importTrigger()" class="flex-1 py-4 bg-white border-2 border-[#F5E6D3] text-[#8C7355] rounded-[1.5rem] text-xs font-black shadow-sm active:scale-95 flex items-center justify-center gap-2"><i data-lucide="upload" class="w-4"></i> 匯入資料</button>
+                    ${renderImportExportButtons('mahjong')}
                 </div>
             `;
         }
 
+        function renderImportExportButtons(type) {
+            return `
+                <div class="flex flex-wrap gap-2 px-2 mt-4">
+                    <button onclick="window.importTrigger()" class="flex-1 min-w-[100px] py-3 bg-white border-2 border-[#F5E6D3] text-[#8C7355] rounded-2xl text-[10px] font-black shadow-sm active:scale-95 flex items-center justify-center gap-1.5 transition-all hover:bg-[#FBF8F5]"><i data-lucide="upload" class="w-3.5"></i> 匯入</button>
+                    <button onclick="window.exportData()" class="flex-1 min-w-[100px] py-3 bg-white border-2 border-[#F5E6D3] text-[#8C7355] rounded-2xl text-[10px] font-black shadow-sm active:scale-95 flex items-center justify-center gap-1.5 transition-all hover:bg-[#FBF8F5]"><i data-lucide="download" class="w-3.5"></i> 匯出</button>
+                    <button onclick="window.exportExcel('${type}')" class="flex-1 min-w-[100px] py-3 bg-[#8C7355] text-white rounded-2xl text-[10px] font-black shadow-md active:scale-95 flex items-center justify-center gap-1.5 transition-all hover:opacity-90"><i data-lucide="file-spreadsheet" class="w-3.5"></i> 匯出 Excel</button>
+                </div>
+            `;
+        }
+
+        window.exportExcel = (type) => {
+            let data = []; let filename = "";
+            if (type === 'mahjong') {
+                filename = "2026_麻將紀錄.xlsx";
+                data = state.allSessions.map(s => {
+                    const row = { "日期": s.date, "地點": s.location || "未填寫", "底/台": s.stakes, "將數": s.rounds };
+                    s.players.forEach((p, idx) => { row[`玩家${idx+1}`] = p.name; row[`金額${idx+1}`] = p.amount; });
+                    row["備註"] = s.note || ""; return row;
+                });
+            } else {
+                filename = "2026_紅點紀錄.xlsx";
+                data = state.redDotSessions.map(s => {
+                    const row = { "日期": s.date };
+                    s.players.forEach((p, idx) => { row[`玩家${idx+1}`] = p.name; row[`金額${idx+1}`] = p.amount; });
+                    return row;
+                });
+            }
+            if (data.length === 0) { showToast("無資料可供匯出"); return; }
+            const worksheet = XLSX.utils.json_to_sheet(data); const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "紀錄列表"); XLSX.writeFile(workbook, filename);
+            showToast("Excel 匯出成功");
+        };
+
         function renderReport(container) {
+            // 使用篩選的地點與月份計算統計
             const filteredStats = calculateStats(state.rankFilterLocations, state.reportMonth);
             const allLocations = [...new Set(state.allSessions.map(s => s.location || "未填寫"))].sort();
 
             if (state.selectedPlayer && filteredStats[state.selectedPlayer]) {
                 const p = filteredStats[state.selectedPlayer];
-                const s = { sess: p.sessions, rds: p.rounds, net: p.net, wins: p.totalWins };
+                // 個人明細頁面的月份篩選依然獨立運作，但受限於排行頁面的地點篩選
+                const hist = p.history.filter(h => state.detailMonth === 'total' || h.month === state.detailMonth);
+                const s = hist.reduce((acc, curr) => { acc.sess++; acc.rds += Number(curr.rounds); acc.net += curr.amount; if (curr.amount > 0) acc.wins++; return acc; }, { sess: 0, rds: 0, net: 0, wins: 0 });
                 
                 container.innerHTML = `
                     <div class="bg-[#FFFDFB] rounded-[2.5rem] p-6 border-8 border-white shadow-sm min-h-[60vh]">
                         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
                             <div class="flex items-center gap-4">
-                                <button onclick="window.state.selectedPlayer=null; window.render()" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355] active:scale-90"><i data-lucide="arrow-left" class="w-5"></i></button>
-                                <div>
-                                    <h2 class="text-xl font-black text-[#4A3728]">${state.selectedPlayer}</h2>
-                                    <p class="text-[10px] font-bold text-[#C4B19E] uppercase tracking-widest">${state.reportMonth === 'total' ? '全年度' : monthNames[parseInt(state.reportMonth)-1]}數據</p>
-                                </div>
+                                <button onclick="window.state.selectedPlayer=null; window.render()" class="p-2 bg-[#F5E6D3] rounded-xl text-[#8C7355]"><i data-lucide="arrow-left"></i></button>
+                                <div><h2 class="text-xl font-black text-[#4A3728]">${state.selectedPlayer}</h2><p class="text-[10px] font-bold text-[#C4B19E]">Mahjong Log</p></div>
                             </div>
-                            <div class="text-[10px] font-black text-[#8C7355] bg-[#FBF8F5] px-3 py-1 rounded-lg border border-[#F5E6D3]">
-                                地點：${state.rankFilterLocations.length === 0 ? '全部' : state.rankFilterLocations.join('、')}
+                            <div class="flex flex-col gap-1 items-end">
+                                <span class="text-[8px] font-black text-[#C4B19E] uppercase">地點篩選：${state.rankFilterLocations.length === 0 ? '全部' : state.rankFilterLocations.join(', ')}</span>
+                                <select onchange="window.state.detailMonth=this.value; window.render()" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-10 py-2.5 text-[#8C7355] border-none outline-none cursor-pointer select-custom shadow-sm">
+                                    <option value="total">全年度成績</option>
+                                    ${monthNames.map((m, i) => `<option value="${String(i+1).padStart(2,'0')}" ${state.detailMonth === String(i+1).padStart(2,'0') ? 'selected' : ''}>${m}</option>`).join('')}
+                                </select>
                             </div>
                         </div>
-
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 text-center">
-                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30 shadow-inner"><p class="text-[8px] font-bold text-[#C4B19E] mb-1 uppercase">場數</p><p class="text-xl font-black text-[#8C7355]">${s.sess}</p></div>
-                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30 shadow-inner"><p class="text-[8px] font-bold text-[#C4B19E] mb-1 uppercase">勝率</p><p class="text-xl font-black text-[#8C7355]">${s.sess > 0 ? (s.wins/s.sess*100).toFixed(1) : 0}%</p></div>
-                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30 shadow-inner"><p class="text-[8px] font-bold text-[#C4B19E] mb-1 uppercase">將數</p><p class="text-xl font-black text-[#8C7355]">${s.rds}</p></div>
-                            <div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30 shadow-inner"><p class="text-[8px] font-bold text-[#C4B19E] mb-1 uppercase">盈虧</p><p class="text-xl font-black ${s.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${s.net}</p></div>
+                            ${renderStatBox("場數", s.sess)}
+                            ${renderStatBox("勝率", (s.sess > 0 ? (s.wins / s.sess * 100).toFixed(1) : 0) + "%")}
+                            ${renderStatBox("將數", s.rds)}
+                            ${renderStatBox("盈虧", s.net, s.net < 0 ? 'text-[#A64B4B]' : 'text-[#8C7355]')}
                         </div>
-
                         <div class="space-y-4">
-                            ${p.history.slice().reverse().map(h => `
+                            ${hist.slice().reverse().map(h => `
                                 <div class="bg-white p-5 rounded-[2rem] border border-[#F5E6D3] shadow-sm">
-                                    <div class="flex justify-between items-start mb-3">
-                                        <div><span class="text-xs font-black block text-gray-700">${h.date}</span><span class="text-[9px] text-[#C4B19E]">地點：${h.location}</span></div>
+                                    <div class="flex justify-between mb-2">
+                                        <div><span class="text-xs font-black block">${h.date}</span><span class="text-[9px] text-[#C4B19E]">${h.location}</span></div>
                                         <span class="text-xl font-black ${h.amount >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${h.amount > 0 ? '+' : ''}${h.amount}</span>
                                     </div>
-                                    <div class="flex items-center gap-2 mb-3 bg-[#FBF8F5] py-2 px-3 rounded-xl"><i data-lucide="users" class="w-3 text-[#8C7355]"></i><span class="text-[10px] text-gray-600 font-medium">${h.opponents.join('、')}</span></div>
-                                    <div class="flex gap-2 border-t border-dashed border-[#F5E6D3] pt-3">
-                                        <span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.rounds} 將</span>
-                                        <span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-bold text-[#8C7355]">${h.stakes || DEFAULT_STAKES}</span>
+                                    <div class="text-[10px] bg-[#FBF8F5] p-2 rounded-xl mb-2"><i data-lucide="users" class="w-3 inline mr-1"></i> ${h.opponents.join('、')}</div>
+                                    <div class="flex gap-2 border-t border-dashed border-[#F5E6D3] pt-2">
+                                        <span class="text-[9px] bg-[#F5E6D3] px-3 py-1 rounded-full font-black text-[#8C7355]">${h.rounds} 將</span>
                                     </div>
-                                    ${h.note ? `<div class="mt-3 p-3 bg-[#F0EAD6]/30 rounded-2xl border-l-4 border-[#8C7355] text-[10px] italic leading-relaxed text-gray-600">「 ${h.note} 」</div>` : ''}
-                                </div>
-                            `).join('')}
+                                </div>`).join('')}
                         </div>
                     </div>
                 `;
@@ -411,17 +474,18 @@
                 container.innerHTML = `
                     <div class="bg-[#FFFDFB] rounded-[3rem] p-8 border-8 border-white shadow-sm min-h-[60vh]">
                         <div class="flex justify-between items-center mb-6">
-                            <div><h2 class="text-xl font-black">地點戰績排行</h2><p class="text-[10px] font-bold text-[#C4B19E] tracking-widest uppercase">Location Ranking</p></div>
-                            <select onchange="window.state.reportMonth=this.value; window.render()" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-6 py-2.5 text-[#8C7355] border-none outline-none cursor-pointer select-custom shadow-sm mr-2">
+                            <div><h2 class="text-xl font-black">麻將戰績排行</h2><p class="text-[10px] font-bold text-[#C4B19E]">Mahjong Ranking</p></div>
+                            <select onchange="window.state.reportMonth=this.value; window.render()" class="bg-[#F5E6D3] rounded-xl text-xs font-black px-10 py-2.5 text-[#8C7355] border-none outline-none cursor-pointer select-custom shadow-sm mr-2">
                                 <option value="total" ${state.reportMonth === 'total' ? 'selected' : ''}>全年度排行</option>
                                 ${monthNames.map((m, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${state.reportMonth === String(i + 1).padStart(2, '0') ? 'selected' : ''}>${m}</option>`).join('')}
                             </select>
                         </div>
 
+                        <!-- 地點篩選列 -->
                         <div class="mb-8 overflow-hidden">
                             <div class="flex items-center justify-between mb-2 px-1">
-                                <label class="text-[10px] font-black text-[#C4B19E] uppercase flex items-center gap-1.5"><i data-lucide="map-pin" class="w-3"></i> 選擇地點 ${state.rankFilterLocations.length > 0 ? `(${state.rankFilterLocations.length})` : ''}</label>
-                                ${state.rankFilterLocations.length > 0 ? `<button onclick="window.clearRankFilter()" class="text-[9px] font-bold text-[#A64B4B] hover:underline">顯示所有</button>` : ''}
+                                <label class="text-[10px] font-black text-[#C4B19E] uppercase flex items-center gap-1.5"><i data-lucide="map-pin" class="w-3"></i> 篩選對戰地點 ${state.rankFilterLocations.length > 0 ? `(${state.rankFilterLocations.length})` : ''}</label>
+                                ${state.rankFilterLocations.length > 0 ? `<button onclick="window.clearRankFilter()" class="text-[9px] font-bold text-[#A64B4B] hover:underline">重置</button>` : ''}
                             </div>
                             <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
                                 ${allLocations.map(loc => `
@@ -433,75 +497,206 @@
                         </div>
 
                         <div class="space-y-3">
-                            <div class="grid grid-cols-12 px-4 py-2 text-[10px] font-black text-[#C4B19E] uppercase tracking-widest border-b border-[#F5E6D3] mb-2 text-center">
-                                <div class="col-span-4 text-left">玩家</div><div class="col-span-2">場數</div><div class="col-span-3">勝率</div><div class="col-span-3 text-right pr-6">地點盈虧</div>
+                            <div class="grid grid-cols-12 px-4 py-2 text-[10px] font-black text-[#C4B19E] border-b border-[#F5E6D3] mb-2 uppercase text-center">
+                                <div class="col-span-4 text-left">玩家</div>
+                                <div class="col-span-2">場數</div>
+                                <div class="col-span-3">勝率</div>
+                                <div class="col-span-3 text-right pr-6">局部盈虧</div>
                             </div>
                             ${Object.entries(filteredStats).map(([n, d]) => ({ name: n, ...d }))
-                                .sort((a, b) => b.net - a.net)
+                                .sort((a,b)=>b.net-a.net)
                                 .map((p, idx) => {
                                     const wr = p.sessions > 0 ? (p.totalWins/p.sessions*100).toFixed(1) : 0;
                                     return `<div onclick="window.state.selectedPlayer='${p.name}'; window.state.detailMonth=window.state.reportMonth; window.switchView('report', false)" class="grid grid-cols-12 items-center px-4 py-5 rounded-[2rem] border-2 cursor-pointer transition-all active:scale-95 ${idx === 0 ? 'bg-[#F0EAD6]/40 border-[#8C7355]/20 shadow-sm' : 'bg-white border-transparent shadow-sm'}">
                                         <div class="col-span-4 flex items-center gap-2">
-                                            <div class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black ${idx === 0 ? 'bg-[#8C7355] text-white shadow-md' : 'bg-[#F5E6D3] text-[#8C7355]'}">${idx + 1}</div>
-                                            <span class="font-black text-xs truncate text-[#4A3728]">${p.name}</span>
+                                            <div class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black ${idx === 0 ? 'bg-[#8C7355] text-white shadow-md' : 'bg-[#F5E6D3] text-[#8C7355]'}">${idx+1}</div>
+                                            <span class="font-black text-xs truncate">${p.name}</span>
                                         </div>
                                         <div class="col-span-2 text-center text-xs font-black text-[#C4B19E]">${p.sessions}</div>
-                                        <div class="col-span-3 text-center"><span class="text-[10px] font-black text-[#8C7355] px-1.5 py-0.5 bg-[#FBF8F5] rounded-lg border border-[#F5E6D3]">${wr}%</span></div>
+                                        <div class="col-span-3 text-center font-black text-[10px] text-[#8C7355]">${wr}%</div>
                                         <div class="col-span-3 text-right font-black text-sm pr-6 ${p.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${p.net > 0 ? '+' : ''}${p.net}</div>
                                     </div>`;
                                 }).join('')}
-                            ${Object.keys(filteredStats).length === 0 ? '<div class="py-20 text-center opacity-30 italic text-sm">該條件下尚無對戰資料</div>' : ''}
+                            ${Object.keys(filteredStats).length === 0 ? '<div class="py-20 text-center opacity-30 italic text-sm">該篩選範圍內尚無對戰資料</div>' : ''}
                         </div>
                     </div>
                 `;
             }
         }
 
+        function renderRedDot(container) {
+            container.innerHTML = `
+                <div class="space-y-4">
+                    <div class="bg-[#FFFDFB] rounded-[2.5rem] p-8 border-8 border-white shadow-sm min-h-[70vh]">
+                        <div class="flex justify-between items-center mb-8">
+                            <div><h2 class="text-xl font-black text-[#4A3728]">撿紅點明細</h2><p class="text-[10px] font-bold text-[#C4B19E] uppercase tracking-widest text-[#8C7355]">History</p></div>
+                            <button onclick="window.createNewRedDot()" class="bg-[#8C7355] text-white px-6 py-2.5 rounded-full text-xs font-black shadow-lg flex items-center gap-2 active:scale-95 transition-all"><i data-lucide="plus" class="w-4"></i> 新增場次</button>
+                        </div>
+                        <div class="space-y-4">
+                            ${state.redDotSessions.map(s => `
+                                <div onclick="window.editRedDot('${s.id}')" class="bg-white p-5 rounded-[2.5rem] border-2 border-[#F5E6D3] shadow-sm cursor-pointer hover:border-[#8C7355] transition-all group">
+                                    <div class="flex justify-between items-center mb-3">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-10 h-10 bg-[#F5E6D3] rounded-full flex items-center justify-center text-[#8C7355]"><i data-lucide="calendar"></i></div>
+                                            <div><p class="text-xs font-black text-[#4A3728]">${s.date}</p><p class="text-[9px] text-[#C4B19E]">結算金額紀錄</p></div>
+                                        </div>
+                                        <i data-lucide="chevron-right" class="text-[#C4B19E] group-hover:text-[#8C7355]"></i>
+                                    </div>
+                                    <div class="flex gap-2 overflow-x-auto no-scrollbar">
+                                        ${s.players.map(p => `<div class="bg-[#FBF8F5] px-4 py-2 rounded-2xl border border-[#F5E6D3] min-w-[80px] text-center"><p class="text-[9px] font-black text-[#C4B19E] truncate uppercase">${p.name}</p><p class="text-xs font-black ${p.amount >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${p.amount >= 0 ? '+' : ''}${p.amount}</p></div>`).join('')}
+                                    </div>
+                                </div>`).join('')}
+                        </div>
+                    </div>
+                    ${renderImportExportButtons('reddot')}
+                </div>
+            `;
+        }
+
+        function renderRedDotRank(container) {
+            const ranks = calculateRedDotRanking();
+            container.innerHTML = `
+                <div class="bg-[#FFFDFB] rounded-[3rem] p-8 border-8 border-white shadow-sm min-h-[70vh]">
+                    <div class="flex justify-between items-center mb-8"><div><h2 class="text-xl font-black text-[#4A3728]">紅點神手排行</h2><p class="text-[10px] font-bold text-[#C4B19E] uppercase tracking-widest text-[#8C7355]">Red Dot Leaderboard</p></div><div class="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><i data-lucide="award"></i></div></div>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-12 px-4 py-2 text-[10px] font-black text-[#C4B19E] uppercase border-b border-[#F5E6D3] mb-2 text-center"><div class="col-span-4 text-left">玩家</div><div class="col-span-4 text-center">參戰場數</div><div class="col-span-4 text-right pr-6">累計盈虧</div></div>
+                        ${Object.entries(ranks).map(([n, d]) => ({ name: n, ...d })).sort((a, b) => b.net - a.net).map((p, idx) => `
+                            <div class="grid grid-cols-12 items-center px-4 py-5 rounded-[2rem] border-2 ${idx === 0 ? 'bg-[#F0EAD6]/40 border-[#8C7355]/20 shadow-sm' : 'bg-white border-transparent shadow-sm'}">
+                                <div class="col-span-4 flex items-center gap-2"><div class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black ${idx === 0 ? 'bg-[#8C7355] text-white shadow-md' : 'bg-[#F5E6D3] text-[#8C7355]'}">${idx + 1}</div><span class="font-black text-xs truncate text-[#4A3728]">${p.name}</span></div>
+                                <div class="col-span-4 text-center text-xs font-black text-[#C4B19E]">${p.sessions} 場</div>
+                                <div class="col-span-4 text-right font-black text-sm pr-6 ${p.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${p.net > 0 ? '+' : ''}${p.net}</div>
+                            </div>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         function renderMemo(container) {
             container.innerHTML = `
                 <div class="bg-[#FFFDFB] rounded-[3rem] p-8 border-8 border-white shadow-sm min-h-[70vh] flex flex-col">
-                    <div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-black">備忘錄</h2><p class="text-[10px] font-bold text-[#C4B19E] uppercase tracking-widest">Rules & Notes</p></div><button onclick="window.saveMemo()" id="memo-save-btn" class="bg-[#8C7355] text-white px-6 py-2.5 rounded-full text-xs font-black shadow-lg flex items-center gap-2 active:scale-95 transition-all"><i data-lucide="save" class="w-4"></i> 儲存變更</button></div>
+                    <div class="flex justify-between items-center mb-6"><div><h2 class="text-xl font-black text-[#4A3728]">備忘錄</h2><p class="text-[10px] font-bold text-[#C4B19E] uppercase tracking-widest text-[#8C7355]">Notes</p></div><button onclick="window.saveMemo()" id="memo-save-btn" class="bg-[#8C7355] text-white px-6 py-2.5 rounded-full text-xs font-black shadow-lg flex items-center gap-2 active:scale-95 transition-all"><i data-lucide="save" class="w-4"></i> 儲存變更</button></div>
                     <textarea id="memo-input" class="w-full flex-1 bg-[#FBF8F5] border-2 border-[#F5E6D3] rounded-[2rem] p-8 text-sm font-medium leading-relaxed outline-none resize-none focus:ring-2 focus:ring-[#8C7355]/20 shadow-inner" placeholder="在此輸入規則或筆記...">${state.memoData}</textarea>
                 </div>
             `;
         }
 
-        window.saveMemo = async () => {
-            if (!state.user) return;
-            const btn = document.getElementById('memo-save-btn'); const val = document.getElementById('memo-input').value;
-            btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="w-4 animate-spin"></i>';
-            try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'app_memo', 'global_memo'), { content: val, updatedAt: Date.now() }); showToast("已儲存備忘錄"); } catch (e) { showToast("儲存失敗"); }
-            btn.disabled = false; btn.innerHTML = '<i data-lucide="save" class="w-4"></i> 儲存變更'; lucide.createIcons();
+        // --- 功能邏輯 ---
+        window.saveRedDotToCloud = async () => {
+            const total = state.editingRedDot.players.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+            if (total !== 0 && !confirm(`總金額不平衡 (${total})，確定要儲存？`)) return;
+            try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reddot_sessions_v2', state.editingRedDot.id), state.editingRedDot); window.showToast("紅點紀錄已儲存"); window.closeModal(); } catch (e) { window.showToast("儲存失敗"); }
+        };
+        window.deleteRedDotSession = async () => {
+            if (!confirm("確定刪除此場紅點紀錄？")) return;
+            try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reddot_sessions_v2', state.editingRedDot.id)); window.showToast("已刪除"); window.closeModal(); } catch (e) { window.showToast("刪除失敗"); }
+        };
+        window.toggleRedDotPlayer = (n) => {
+            const g = state.editingRedDot; const idx = g.players.findIndex(p => p.name === n);
+            if (idx > -1) g.players.splice(idx, 1);
+            else if (g.players.length < 4) g.players.push({name: n, amount: 0});
+            else window.showToast("最多 4 人");
+            window.renderRedDotModal();
+        };
+        window.updateRedDotPlayerName = (i, v) => { state.editingRedDot.players[i].name = v; window.renderRedDotModal(); };
+        window.updateRedDotPlayerAmount = (i, v) => { state.editingRedDot.players[i].amount = Number(v); window.renderRedDotModal(); };
+        window.removeRedDotPlayer = (i) => { state.editingRedDot.players.splice(i, 1); window.renderRedDotModal(); };
+        window.addBlankRedDotPlayer = () => { state.editingRedDot.players.push({name: "", amount: 0}); window.renderRedDotModal(); };
+        
+        window.saveToCloud = async () => {
+            const btn = document.getElementById('modal-save-btn'); if (!btn) return;
+            btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin w-5"></i>';
+            try {
+                const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state');
+                await setDoc(backupRef, { content: JSON.stringify({ sessions: state.allSessions, redDot: state.redDotSessions }), timestamp: Date.now() });
+                for (const s of state.editingSessions) {
+                    if (!state.deletedIds.has(s.id)) { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', s.id), s); }
+                }
+                window.closeModal(); showToast("資料已同步");
+            } catch (e) { showToast("儲存失敗"); }
+            btn.disabled = false; btn.innerHTML = '<i data-lucide="save" class="w-5"></i> 儲存並同步'; lucide.createIcons();
         };
 
-        window.openModal = (dateStr) => {
-            state.selectedDateStr = dateStr;
-            const exist = state.allSessions.filter(s => s.date === dateStr);
-            state.editingSessions = exist.length > 0 ? JSON.parse(JSON.stringify(exist)) : [{ id: "new_" + Date.now(), date: dateStr, stakes: DEFAULT_STAKES, location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }];
-            renderModal(); document.getElementById('modal-root').classList.remove('hidden');
+        window.openModal = (ds) => {
+            state.selectedDateStr = ds; const ex = state.allSessions.filter(s => s.date === ds);
+            state.editingSessions = ex.length > 0 ? JSON.parse(JSON.stringify(ex)) : [{ id: "new_" + Date.now(), date: ds, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }];
+            window.renderModal();
         };
 
-        window.closeModal = () => { state.deletedIds.clear(); document.getElementById('modal-root').classList.add('hidden'); };
-        window.openToday = () => { const t = new Date(); window.openModal(`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`); };
+        window.addSessionToEdit = () => { state.editingSessions.push({ id: "new_" + Date.now(), date: state.selectedDateStr, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }); window.renderModal(); };
+        window.updateSession = (i, k, v) => { state.editingSessions[i][k] = v; window.renderModal(); };
+        window.updatePlayer = (i, pi, k, v) => { state.editingSessions[i].players[pi][k] = v; window.renderModal(); };
+        window.deleteSessionImmediate = async (id) => {
+            if (state.allSessions.some(s => s.id === id) && !confirm("確定永久刪除？")) return;
+            state.deletedIds.add(id); state.editingSessions = state.editingSessions.filter(s => s.id !== id);
+            window.renderModal(); try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id)); showToast("已刪除紀錄"); } catch (e) { state.deletedIds.delete(id); }
+        };
 
-        function renderModal() {
-            const modal = document.getElementById('modal-content');
-            if (!modal) return;
-            const sum = {}; state.editingSessions.forEach(s => s.players.forEach(p => { const n = p.name.trim(); if (!n) return; if (!sum[n]) sum[n] = { net: 0 }; sum[n].net += Number(p.amount); }));
-            modal.innerHTML = `
-                <div class="p-6 border-b border-[#F5E6D3] flex justify-between items-center bg-white shadow-sm">
-                    <div class="flex items-center gap-3"><div class="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><i data-lucide="calendar-days" class="w-5"></i></div><h3 class="text-xl font-black text-[#4A3728]">${state.selectedDateStr} 管理</h3></div>
-                    <div class="flex gap-2">
-                        <button onclick="window.addSessionToEdit()" class="bg-[#A67B5B] text-white w-10 h-10 flex items-center justify-center rounded-xl shadow-md active:scale-95 font-black text-2xl" title="新增場次">+</button>
-                        <button onclick="window.closeModal()" class="bg-[#F5E6D3] p-2 rounded-full text-[#8C7355] shadow-sm"><i data-lucide="x" class="w-5"></i></button>
-                    </div>
-                </div>
+        window.handleRestore = async () => {
+            if (!confirm("還原到上一步紀錄？")) return;
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            try {
+                const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state'));
+                if (snap.exists()) {
+                    const data = JSON.parse(snap.data().content);
+                    const curS = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'sessions'));
+                    for (const d of curS.docs) await deleteDoc(d.ref);
+                    const curR = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'reddot_sessions_v2'));
+                    for (const d of curR.docs) await deleteDoc(d.ref);
+                    for (const s of data.sessions) { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', s.id), s); }
+                    if (data.redDot) for (const r of data.redDot) { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reddot_sessions_v2', r.id), r); }
+                    showToast("還原成功");
+                }
+            } catch (e) { showToast("還原失敗"); }
+            document.getElementById('loading-overlay').classList.add('hidden');
+        };
+
+        window.exportData = () => {
+            const b = new Blob([JSON.stringify({ sessions: state.allSessions, redDot: state.redDotSessions }, null, 2)], { type: 'application/json' });
+            const u = URL.createObjectURL(b); const a = document.createElement('a');
+            a.href = u; a.download = `mahjong_diary_2026_backup.json`; a.click(); URL.revokeObjectURL(u);
+        };
+
+        window.importTrigger = () => { const fi = document.getElementById('file-input'); if (fi) fi.click(); };
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const f = e.target.files[0]; if (!f) return;
+            const r = new FileReader(); r.onload = async (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    const sessions = data.sessions || data;
+                    for (const s of sessions) { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', s.id), s); }
+                    if (data.redDot) { for (const s of data.redDot) { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reddot_sessions_v2', s.id), s); } }
+                    showToast("匯入成功");
+                } catch (err) { showToast("格式錯誤"); }
+            }; r.readAsText(f);
+        });
+
+        window.closeModal = () => { state.deletedIds.clear(); state.editingRedDot = null; document.getElementById('modal-root').classList.add('hidden'); };
+        window.openToday = () => { 
+            const t = new Date(); const ds = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+            if (state.view === 'reddot') window.createNewRedDot();
+            else window.openModal(ds);
+        };
+
+        window.createNewRedDot = () => {
+            const t = new Date();
+            state.editingRedDot = { id: "rd_" + Date.now(), date: `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`, players: [{name: NAME_1, amount: 0}, {name: NAME_2, amount: 0}] };
+            window.renderRedDotModal();
+        };
+
+        window.editRedDot = (id) => {
+            const s = state.redDotSessions.find(x => x.id === id);
+            if (s) { state.editingRedDot = JSON.parse(JSON.stringify(s)); window.renderRedDotModal(); }
+        };
+
+        window.renderModal = () => {
+            const modalContent = document.getElementById('modal-content'); const game = state.editingSessions; if (!game) return;
+            document.getElementById('modal-root').classList.remove('hidden');
+            const sm = {}; game.forEach(s => s.players.forEach(p => { const n = p.name.trim(); if (n) { sm[n] = (sm[n] || 0) + Number(p.amount); } }));
+            modalContent.innerHTML = `
+                <div class="p-6 border-b border-[#F5E6D3] flex justify-between items-center bg-white shadow-sm"><div class="flex items-center gap-3"><div class="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><i data-lucide="calendar-days"></i></div><h3 class="text-xl font-black text-[#4A3728]">${state.selectedDateStr}</h3></div><div class="flex gap-2"><button onclick="window.addSessionToEdit()" class="bg-[#A67B5B] text-white w-10 h-10 flex items-center justify-center rounded-xl shadow-md font-black text-2xl">+</button><button onclick="window.closeModal()" class="bg-[#F5E6D3] p-2 rounded-full text-[#8C7355] shadow-sm"><i data-lucide="x"></i></button></div></div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-6 bg-[#FBF8F5] no-scrollbar">
-                    <div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/20 shadow-sm">
-                        <div class="flex items-center gap-2 mb-4"><i data-lucide="pie-chart" class="w-4 text-[#8C7355]"></i><h4 class="text-sm font-black text-[#8C7355] uppercase tracking-wider">今日戰績快報</h4></div>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${Object.entries(sum).map(([n, d]) => `<div class="bg-[#FBF8F5] p-3 rounded-2xl border border-[#F5E6D3] text-center shadow-sm"><span class="text-[9px] font-black text-[#C4B19E] block uppercase tracking-tighter">${n}</span><span class="text-sm font-black ${d.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${d.net > 0 ? '+' : ''}${d.net}</span></div>`).join('')}</div>
-                    </div>
-                    ${state.editingSessions.map((s, idx) => {
+                    <div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/20 shadow-sm"><div class="flex items-center gap-2 mb-4"><i data-lucide="pie-chart" class="w-4 text-[#8C7355]"></i><h4 class="text-sm font-black text-[#8C7355] uppercase tracking-wider">今日麻將快報</h4></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${Object.entries(sm).map(([n, d]) => `<div class="bg-[#FBF8F5] p-3 rounded-2xl border border-[#F5E6D3] text-center shadow-sm"><span class="text-[9px] font-black text-[#C4B19E] block uppercase">${n}</span><span class="text-sm font-black ${d >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${d > 0 ? '+' : ''}${d}</span></div>`).join('')}</div></div>
+                    ${game.map((s, idx) => {
                         const bal = s.players.reduce((a, b) => a + (Number(b.amount) || 0), 0);
                         return `<div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/30 relative shadow-sm">
                             <button onclick="window.deleteSessionImmediate('${s.id}')" class="absolute -top-3 -right-3 bg-white text-rose-500 p-2.5 rounded-full shadow-lg border border-rose-100 active:scale-90 hover:bg-rose-50"><i data-lucide="trash-2" class="w-4"></i></button>
@@ -512,87 +707,17 @@
                                 <div><label class="text-[10px] font-black text-[#C4B19E] block uppercase">將數</label><input type="number" value="${s.rounds}" onchange="window.updateSession(${idx}, 'rounds', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black shadow-inner"></div>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">${s.players.map((p, pIdx) => `<div class="flex items-center gap-2 p-3 rounded-2xl border-2 ${pIdx < 2 ? 'bg-[#F5E6D3]/10 border-[#F5E6D3]/50' : 'bg-[#FBF8F5] border-transparent shadow-inner'}"><input type="text" value="${p.name}" onchange="window.updatePlayer(${idx}, ${pIdx}, 'name', this.value)" class="flex-1 bg-transparent border-none text-xs font-black outline-none"><div class="bg-white px-3 py-1.5 rounded-xl border border-gray-100 flex items-center shadow-sm"><span class="text-[10px] text-[#C4B19E] mr-1">$</span><input type="number" value="${p.amount}" onchange="window.updatePlayer(${idx}, ${pIdx}, 'amount', this.value)" class="w-16 bg-transparent border-none text-right font-black text-xs outline-none"></div></div>`).join('')}</div>
-                            
-                            <div class="flex items-center justify-between mt-4 pt-4 border-t border-[#F5E6D3]">
-                                <div class="flex items-center gap-4">
-                                    <div class="px-6 py-2 rounded-full inline-flex items-center gap-2 text-[10px] font-black ${bal === 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-500 border border-rose-100'}"><i data-lucide="${bal === 0 ? 'check-circle-2' : 'alert-circle'}" class="w-3"></i><span>核算：${bal}</span></div>
-                                    ${!s.note ? `<button onclick="window.updateSession(${idx}, 'note', ' ')" class="text-[10px] font-black text-[#8C7355] flex items-center gap-1 hover:underline"><i data-lucide="plus-circle" class="w-3"></i> 新增筆記</button>` : ''}
-                                </div>
-                            </div>
-
-                            ${s.note ? `
-                            <div class="mt-4 animate-in">
-                                <div class="flex items-center justify-between mb-1"><label class="text-[10px] font-black text-[#8C7355] uppercase flex items-center gap-2"><i data-lucide="message-square" class="w-3"></i> 筆記內容</label><button onclick="window.updateSession(${idx}, 'note', '')" class="text-[10px] text-rose-400 font-bold">移除</button></div>
-                                <textarea onchange="window.updateSession(${idx}, 'note', this.value)" class="w-full bg-[#F5E6D3]/20 border-2 border-dashed border-[#F5E6D3] rounded-2xl p-4 text-[11px] font-medium resize-none h-20 outline-none">${s.note.trim()}</textarea>
-                            </div>` : ''}
+                            <div class="flex items-center justify-between mt-4 pt-4 border-t border-[#F5E6D3]"><div class="px-6 py-2 rounded-full inline-flex items-center gap-2 text-[10px] font-black ${bal === 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-500 border border-rose-100'}"><i data-lucide="${bal === 0 ? 'check-circle-2' : 'alert-circle'}" class="w-3"></i><span>核算：${bal}</span></div>${!s.note ? `<button onclick="window.updateSession(${idx}, 'note', ' ')" class="text-[10px] font-black text-[#8C7355] flex items-center gap-1 hover:underline"><i data-lucide="plus-circle" class="w-3"></i> 新增筆記</button>` : ''}</div>
+                            ${s.note ? `<div class="mt-4 animate-in"><div class="flex items-center justify-between mb-1"><label class="text-[10px] font-black text-[#8C7355] uppercase flex items-center gap-2"><i data-lucide="message-square" class="w-3"></i> 筆記內容</label><button onclick="window.updateSession(${idx}, 'note', '')" class="text-[10px] text-rose-400 font-bold">移除</button></div><textarea onchange="window.updateSession(${idx}, 'note', this.value)" class="w-full bg-[#F5E6D3]/20 border-2 border-dashed border-[#F5E6D3] rounded-2xl p-4 text-[11px] font-medium resize-none h-20 outline-none">${s.note.trim()}</textarea></div>` : ''}
                         </div>`;
                     }).join('')}
                 </div>
-                <div class="p-4 bg-white border-t border-[#F5E6D3] shadow-lg"><button onclick="window.saveToCloud()" id="modal-save-btn" class="w-full py-4 bg-[#8C7355] text-white rounded-[2rem] font-black shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95"><i data-lucide="save" class="w-5"></i> 儲存並同步</button></div>
+                <div class="p-4 bg-white border-t border-[#F5E6D3] shadow-lg"><button onclick="window.saveToCloud()" id="modal-save-btn" class="w-full py-4 bg-[#8C7355] text-white rounded-[2rem] font-black shadow-lg flex items-center justify-center gap-3 transition-all active:scale-[0.98] transform hover:translate-y-[-1px]"><i data-lucide="save" class="w-5"></i> 儲存並同步</button></div>
             `;
             lucide.createIcons();
-        }
-
-        window.updateSession = (i, k, v) => { state.editingSessions[i][k] = v; renderModal(); };
-        window.updatePlayer = (i, pi, k, v) => { state.editingSessions[i].players[pi][k] = v; renderModal(); };
-        window.addSessionToEdit = () => { state.editingSessions.push({ id: "new_" + Date.now(), date: state.selectedDateStr, stakes: DEFAULT_STAKES, location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }); renderModal(); };
-
-        window.deleteSessionImmediate = async (id) => {
-            if (state.allSessions.some(s => s.id === id) && !confirm("確定永久刪除？")) return;
-            state.deletedIds.add(id); state.editingSessions = state.editingSessions.filter(s => s.id !== id);
-            renderModal(); try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id)); showToast("已刪除"); } catch (e) { state.deletedIds.delete(id); }
         };
 
-        window.saveToCloud = async () => {
-            const btn = document.getElementById('modal-save-btn'); if (!btn) return;
-            btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin w-5"></i>'; lucide.createIcons();
-            try {
-                const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state');
-                await setDoc(backupRef, { content: JSON.stringify(state.allSessions), timestamp: Date.now() });
-                for (const s of state.editingSessions) {
-                    if (!state.deletedIds.has(s.id)) {
-                        const { id, ...rest } = s; await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest);
-                    }
-                }
-                window.closeModal(); showToast("儲存成功");
-            } catch (e) { showToast("儲存失敗"); }
-            btn.disabled = false; btn.innerHTML = '<i data-lucide="save" class="w-5"></i> 儲存並同步'; lucide.createIcons();
-        };
-
-        window.handleRestore = async () => {
-            if (!confirm("還原到上一步紀錄？")) return;
-            document.getElementById('loading-overlay').classList.remove('hidden');
-            try {
-                const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'backups', 'last_state');
-                const snap = await getDoc(backupRef);
-                if (snap.exists()) {
-                    const cur = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'sessions'));
-                    for (const d of cur.docs) await deleteDoc(d.ref);
-                    const data = JSON.parse(snap.data().content);
-                    for (const s of data) { const { id, ...rest } = s; await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest); }
-                    showToast("還原成功");
-                }
-            } catch (e) { showToast("還原失敗"); }
-            document.getElementById('loading-overlay').classList.add('hidden');
-        };
-
-        window.exportData = () => {
-            const b = new Blob([JSON.stringify(state.allSessions, null, 2)], { type: 'application/json' });
-            const u = URL.createObjectURL(b); const a = document.createElement('a');
-            a.href = u; a.download = `mahjong_2026.json`; a.click(); URL.revokeObjectURL(u);
-        };
-
-        window.importTrigger = () => { const fi = document.getElementById('file-input'); if (fi) fi.click(); };
-        document.getElementById('file-input').addEventListener('change', (e) => {
-            const f = e.target.files[0]; if (!f) return;
-            const r = new FileReader(); r.onload = async (evt) => {
-                try {
-                    const data = JSON.parse(evt.target.result);
-                    for (const s of data) { const { id, ...rest } = s; await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sessions', id), rest); }
-                    showToast("匯入成功");
-                } catch (err) { showToast("格式錯誤"); }
-            }; r.readAsText(f);
-        });
+        function renderStatBox(l, v, c = 'text-[#8C7355]') { return `<div class="bg-[#FBF8F5] p-4 rounded-3xl border border-[#F5E6D3]/30 shadow-inner text-center"><p class="text-[8px] font-bold text-[#C4B19E] mb-1 uppercase">${l}</p><p class="text-xl font-black ${c}">${v}</p></div>`; }
 
         initAuth();
     </script>
