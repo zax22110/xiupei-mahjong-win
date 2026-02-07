@@ -47,13 +47,17 @@
             text-align: center;
         }
         .calc-btn {
-            @apply flex items-center justify-center bg-white border border-[#E6D5C3] rounded-2xl h-14 text-xl font-black active:bg-[#F5E6D3] transition-all shadow-sm;
+            @apply flex items-center justify-center bg-white border border-[#E6D5C3] rounded-2xl h-16 text-2xl font-black active:bg-[#F5E6D3] transition-all shadow-sm text-[#4A3728];
         }
         .calc-btn-op {
-            @apply bg-[#F5E6D3] text-[#8C7355];
+            @apply bg-[#F5E6D3] text-[#8C7355] text-xl;
+        }
+        /* 加減號專用樣式 */
+        .calc-btn-primary-op {
+            @apply bg-[#C4B19E] text-white text-4xl pb-1 shadow-md active:bg-[#A67B5B] border-transparent;
         }
         .calc-btn-confirm {
-            @apply bg-[#8C7355] text-white shadow-md;
+            @apply bg-[#8C7355] text-white shadow-md border-transparent;
         }
     </style>
 </head>
@@ -123,35 +127,44 @@
     </div>
 
     <!-- 計算機 Modal -->
-    <div id="calc-modal" class="hidden fixed inset-0 z-[2000] bg-[#4A3728]/80 backdrop-blur-md flex items-end justify-center animate-in">
-        <div class="bg-[#FFFDFB] w-full max-w-md rounded-t-[3rem] p-8 space-y-6 shadow-2xl border-t-8 border-[#8C7355]">
+    <div id="calc-modal" class="hidden fixed inset-0 z-[2000] bg-[#4A3728]/80 backdrop-blur-md flex items-center justify-center p-4 animate-in">
+        <div class="bg-[#FFFDFB] w-full max-w-sm rounded-[2.5rem] p-6 space-y-5 shadow-2xl border-4 border-[#8C7355]">
             <div class="flex justify-between items-center px-2 text-[#8C7355]">
                 <p class="font-black text-xs uppercase tracking-widest leading-none">金額計算機</p>
                 <button onclick="window.closeCalculator()"><i data-lucide="x-circle"></i></button>
             </div>
-            <div class="bg-[#FBF8F5] rounded-3xl p-6 border-2 border-[#F5E6D3] shadow-inner text-right min-h-[5rem] flex flex-col justify-center">
-                <div id="calc-display" class="text-3xl font-black text-[#4A3728] tracking-tighter truncate">0</div>
+            <div class="bg-[#FBF8F5] rounded-3xl p-5 border-2 border-[#F5E6D3] shadow-inner text-right min-h-[5rem] flex flex-col justify-center">
+                <div id="calc-display" class="text-5xl font-black text-[#4A3728] tracking-tighter truncate">0</div>
             </div>
-            <div class="grid grid-cols-4 gap-3 pb-8">
-                <button onclick="window.pressCalc('C')" class="calc-btn calc-btn-op text-sm">清除</button>
-                <button onclick="window.pressCalc('/')" class="calc-btn calc-btn-op">/</button>
-                <button onclick="window.pressCalc('*')" class="calc-btn calc-btn-op">×</button>
+            <div class="grid grid-cols-4 gap-2.5">
+                <!-- Row 1: Clear, +, -, Back (Top Priority) -->
+                <button onclick="window.pressCalc('C')" class="calc-btn calc-btn-op text-lg">C</button>
+                <button onclick="window.pressCalc('+')" class="calc-btn calc-btn-primary-op">+</button>
+                <button onclick="window.pressCalc('-')" class="calc-btn calc-btn-primary-op">-</button>
                 <button onclick="window.pressCalc('back')" class="calc-btn calc-btn-op"><i data-lucide="delete"></i></button>
+
+                <!-- Row 2: 7, 8, 9, * -->
                 <button onclick="window.pressCalc('7')" class="calc-btn">7</button>
                 <button onclick="window.pressCalc('8')" class="calc-btn">8</button>
                 <button onclick="window.pressCalc('9')" class="calc-btn">9</button>
-                <button onclick="window.pressCalc('-')" class="calc-btn calc-btn-op">-</button>
+                <button onclick="window.pressCalc('*')" class="calc-btn calc-btn-op">×</button>
+
+                <!-- Row 3: 4, 5, 6, / -->
                 <button onclick="window.pressCalc('4')" class="calc-btn">4</button>
                 <button onclick="window.pressCalc('5')" class="calc-btn">5</button>
                 <button onclick="window.pressCalc('6')" class="calc-btn">6</button>
-                <button onclick="window.pressCalc('+')" class="calc-btn calc-btn-op">+</button>
+                <button onclick="window.pressCalc('/')" class="calc-btn calc-btn-op">÷</button>
+                
+                <!-- Row 4: 1, 2, 3, = -->
                 <button onclick="window.pressCalc('1')" class="calc-btn">1</button>
                 <button onclick="window.pressCalc('2')" class="calc-btn">2</button>
                 <button onclick="window.pressCalc('3')" class="calc-btn">3</button>
                 <button onclick="window.pressCalc('=')" class="calc-btn calc-btn-op">=</button>
+                
+                <!-- Row 5: 0, ., OK -->
                 <button onclick="window.pressCalc('0')" class="calc-btn col-span-2">0</button>
                 <button onclick="window.pressCalc('.')" class="calc-btn">.</button>
-                <button onclick="window.applyCalculator()" class="calc-btn calc-btn-confirm"><i data-lucide="check"></i></button>
+                <button onclick="window.applyCalculator()" class="calc-btn calc-btn-confirm"><i data-lucide="check" size="28"></i></button>
             </div>
         </div>
     </div>
@@ -161,9 +174,17 @@
     <input type="file" id="file-input" class="hidden" accept=".json">
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, collection, onSnapshot, setDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // 錯誤攔截：確保如果腳本失敗，使用者知道發生什麼事
+        window.onerror = function(msg, url, line) {
+            const overlay = document.getElementById('loading-overlay');
+            if(overlay) overlay.classList.add('hidden');
+            alert("系統發生錯誤，請截圖給開發者：\n" + msg);
+        };
+
+        // 使用穩定版 Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
+        import { getFirestore, doc, collection, onSnapshot, setDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
         // --- Firebase 配置 ---
         const firebaseConfig = {
@@ -183,6 +204,8 @@
         const NAME_1 = "肅佩";
         const NAME_2 = "泓翰";
         const RED_DOT_PRESETS = ["肅佩", "泓翰", "祥一", "靜譊", "阿鄉"];
+        const MAHJONG_PRESETS = ["肅佩", "泓翰", "亭瑋", "萱如", "培枝", "阿泉", "阿雪", "阿如"];
+        
         const monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
 
         let state = {
@@ -427,15 +450,76 @@
 
         window.openModal = (ds) => {
             state.selectedDateStr = ds; const ex = state.allSessions.filter(s => s.date === ds);
-            state.editingSessions = ex.length > 0 ? JSON.parse(JSON.stringify(ex)) : [{ id: "new_" + Date.now(), date: ds, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }];
+            // 修改：預設底台 50/20，且第3、4家預設為空
+            state.editingSessions = ex.length > 0 ? JSON.parse(JSON.stringify(ex)) : [{ id: "new_" + Date.now(), date: ds, stakes: '50/20', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '', amount: 0 }, { name: '', amount: 0 }] }];
             window.renderModal(); document.getElementById('modal-root').classList.remove('hidden');
+        };
+
+        // 修改：新增取得所有玩家名稱的函式
+        window.getUniquePlayers = () => {
+            // 使用 MAHJONG_PRESETS 而不是 RED_DOT_PRESETS，因為這是麻將頁面為主的邏輯
+            const set = new Set(MAHJONG_PRESETS);
+            
+            // 移除對手A, 對手B，只保留預設名單跟有紀錄的人
+            
+            state.allSessions.forEach(s => s.players.forEach(p => { if(p.name) set.add(p.name.trim()) }));
+            state.redDotSessions.forEach(s => s.players.forEach(p => { if(p.name) set.add(p.name.trim()) }));
+            
+            return Array.from(set).filter(n => n).sort(); // 過濾空值並排序
+        };
+
+        // 修改：處理玩家名稱變更 (支援新增)
+        window.handlePlayerNameChange = (sIdx, pIdx, val) => {
+            if (val === '___NEW___') {
+                const newName = prompt("請輸入新玩家名稱：");
+                if (newName && newName.trim()) {
+                    window.updatePlayer(sIdx, pIdx, 'name', newName.trim());
+                } else {
+                    window.renderModal();
+                }
+            } else if (val === '___EDIT___') {
+                // 取得當前的名字
+                const currentName = state.editingSessions[sIdx].players[pIdx].name;
+                const newName = prompt("修正玩家名稱：", currentName);
+                if (newName && newName.trim()) {
+                    window.updatePlayer(sIdx, pIdx, 'name', newName.trim());
+                } else {
+                    window.renderModal(); // 取消時恢復原狀
+                }
+            } else {
+                window.updatePlayer(sIdx, pIdx, 'name', val);
+            }
         };
 
         window.renderModal = () => {
             const modalContent = document.getElementById('modal-content'); const game = state.editingSessions; if (!game) return;
             const sm = {}; game.forEach(s => s.players.forEach(p => { const n = p.name.trim(); if (n) { if(!sm[n]) sm[n]={net:0}; sm[n].net += Number(p.amount || 0); } }));
-            modalContent.innerHTML = `<div class="p-6 border-b border-[#F5E6D3] flex justify-between items-center bg-white shadow-sm"><div class="flex items-center gap-3"><div class="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><i data-lucide="calendar-days" size="20"></i></div><h3 class="text-xl font-black text-[#4A3728]">${state.selectedDateStr} 管理</h3></div><div class="flex gap-2"><button onclick="window.addSessionToEdit()" class="bg-[#A67B5B] text-white w-10 h-10 flex items-center justify-center rounded-xl shadow-md font-black text-2xl active:scale-90 transition-all">+</button><button onclick="window.closeModal()" class="bg-[#F5E6D3] p-2 rounded-full text-[#8C7355] active:scale-90 shadow-sm"><i data-lucide="x" size="20"></i></button></div></div><div class="flex-1 overflow-y-auto p-4 space-y-6 bg-[#FBF8F5] no-scrollbar"><div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/20 shadow-sm"><div class="flex items-center gap-2 mb-4 text-[#8C7355]"><i data-lucide="pie-chart" class="w-4"></i><h4 class="text-sm font-black uppercase tracking-wider text-sm leading-none text-left">今日戰績快報</h4></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${Object.entries(sm).map(([n, d]) => `<div class="bg-[#FBF8F5] p-3 rounded-2xl border border-[#F5E6D3] text-center shadow-sm"><span class="text-[9px] font-black text-[#C4B19E] block uppercase mb-1 leading-none text-center">${n}</span><span class="text-sm font-black ${d.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${d.net >= 0 ? '+' : ''}${d.net}</span></div>`).join('')}</div></div>${game.map((s, sIdx) => `<div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/30 relative shadow-sm transition-all animate-in"><button onclick="window.deleteSessionImmediate('${s.id}')" class="absolute -top-3 -right-3 bg-white text-rose-500 p-2.5 rounded-full shadow-lg border border-rose-100 active:scale-90"><i data-lucide="trash-2" size="18"></i></button><div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"><div><label class="text-[10px] font-black text-[#C4B19E] block mb-1 text-center text-[#8C7355] uppercase font-black">日期</label><input type="date" value="${s.date}" onchange="window.updateSession(${sIdx}, 'date', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black text-[#8C7355] text-center"></div><div><label class="text-[10px] font-black text-[#C4B19E] block mb-1 text-center text-[#8C7355] uppercase font-black">地點</label><input type="text" value="${s.location}" onchange="window.updateSession(${sIdx}, 'location', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black text-center" placeholder="在哪打？"></div><div><label class="text-[10px] font-black text-[#C4B19E] block mb-1 text-center text-[#8C7355] uppercase font-black">底/台</label><input type="text" value="${s.stakes}" onchange="window.updateSession(${sIdx}, 'stakes', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black text-center"></div><div><label class="text-[10px] font-black text-[#C4B19E] block mb-1 text-center text-[#8C7355] uppercase font-black">將數</label><input type="number" value="${s.rounds}" onchange="window.updateSession(${sIdx}, 'rounds', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black text-center"></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">${s.players.map((p, pIdx) => `<div class="flex items-center justify-center gap-4 p-3 rounded-2xl border-2 ${pIdx < 2 ? 'bg-[#F5E6D3]/10 border-[#F5E6D3]/50' : 'bg-[#FBF8F5] border-transparent shadow-inner'}"><input type="text" value="${p.name}" onchange="window.updatePlayer(${sIdx}, ${pIdx}, 'name', this.value)" class="w-14 bg-transparent border-none text-[10px] font-black outline-none text-[#4A3728] text-center" placeholder="姓名"><div onclick="window.openCalculator({type:'mahjong', sIdx:${sIdx}, pIdx:${pIdx}})" class="flex-1 max-w-[120px] bg-white px-3 py-2 rounded-xl border border-gray-100 flex items-center justify-center shadow-sm cursor-pointer active:scale-95 transition-all text-center"><span class="text-[10px] text-[#C4B19E] mr-1">$</span><span class="text-sm font-black ${p.amount>=0?'text-[#8C7355]':'text-[#A64B4B]'}">${p.amount}</span></div></div>`).join('')}</div><div class="flex items-center justify-between mt-4 pt-4 border-t border-[#F5E6D3]"><div class="px-6 py-2 rounded-full inline-flex items-center gap-2 text-[10px] font-black ${s.players.reduce((a, b) => a + (Number(b.amount) || 0), 0) === 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-500 border border-rose-100'}"><i data-lucide="${s.players.reduce((a, b) => a + (Number(b.amount) || 0), 0) === 0 ? 'check-circle-2' : 'alert-circle'}" size="14"></i><span>核算：${s.players.reduce((a, b) => a + (Number(b.amount) || 0), 0)}</span></div>${!s.note ? `<button onclick="window.updateSession(${sIdx}, 'note', ' ')" class="text-[10px] font-black text-[#8C7355] flex items-center gap-1 active:underline"><i data-lucide="plus-circle" size="14"></i> 筆記</button>` : ''}</div>${s.note ? `<div class="mt-4 animate-in"><textarea onchange="window.updateSession(${sIdx}, 'note', this.value)" class="w-full bg-[#F5E6D3]/20 border-2 border-dashed border-[#F5E6D3] rounded-2xl p-4 text-[11px] font-medium resize-none h-20 outline-none text-center" placeholder="在此輸入筆記...">${s.note.trim()}</textarea></div>` : ''}</div>`).join('')}</div><div class="p-4 bg-white border-t border-[#F5E6D3] shadow-lg"><button onclick="window.saveToCloud()" id="modal-save-btn" class="w-full py-4 bg-[#8C7355] text-white rounded-[2rem] font-black shadow-lg flex items-center justify-center gap-3 transition-all active:scale-[0.98] transform hover:translate-y-[-1px]"><i data-lucide="save" size="20"></i> 儲存資料</button></div>`;
+            
+            // 取得當前所有玩家名單
+            const allNames = window.getUniquePlayers();
+
+            // 新增：紀錄當前捲動位置
+            const scrollContainer = document.getElementById('modal-scroll-container');
+            const scrollPos = scrollContainer ? scrollContainer.scrollTop : 0;
+
+            modalContent.innerHTML = `<div class="p-6 border-b border-[#F5E6D3] flex justify-between items-center bg-white shadow-sm"><div class="flex items-center gap-3"><div class="p-2 bg-[#F5E6D3] rounded-full text-[#8C7355] shadow-inner"><i data-lucide="calendar-days" size="20"></i></div><h3 class="text-xl font-black text-[#4A3728]">${state.selectedDateStr} 管理</h3></div><div class="flex gap-2"><button onclick="window.addSessionToEdit()" class="bg-[#A67B5B] text-white w-10 h-10 flex items-center justify-center rounded-xl shadow-md font-black text-2xl active:scale-90 transition-all">+</button><button onclick="window.closeModal()" class="bg-[#F5E6D3] p-2 rounded-full text-[#8C7355] active:scale-90 shadow-sm"><i data-lucide="x" size="20"></i></button></div></div>
+            <div id="modal-scroll-container" class="flex-1 overflow-y-auto p-4 space-y-6 bg-[#FBF8F5] no-scrollbar">
+            <div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/20 shadow-sm"><div class="flex items-center gap-2 mb-4 text-[#8C7355]"><i data-lucide="pie-chart" class="w-4"></i><h4 class="text-sm font-black uppercase tracking-wider text-sm leading-none text-left">今日戰績快報</h4></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${Object.entries(sm).map(([n, d]) => `<div class="bg-[#FBF8F5] p-3 rounded-2xl border border-[#F5E6D3] text-center shadow-sm"><span class="text-[9px] font-black text-[#C4B19E] block uppercase mb-1 leading-none text-center">${n}</span><span class="text-sm font-black ${d.net >= 0 ? 'text-[#8C7355]' : 'text-[#A64B4B]'}">${d.net >= 0 ? '+' : ''}${d.net}</span></div>`).join('')}</div></div>${game.map((s, sIdx) => `<div class="bg-white rounded-[2rem] p-6 border-2 border-[#8C7355]/30 relative shadow-sm transition-all animate-in"><button onclick="window.deleteSessionImmediate('${s.id}')" class="absolute -top-3 -right-3 bg-white text-rose-500 p-2.5 rounded-full shadow-lg border border-rose-100 active:scale-90"><i data-lucide="trash-2" size="18"></i></button><div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"><div><label class="text-[10px] font-black text-[#C4B19E] block mb-1 text-center text-[#8C7355] uppercase font-black">日期</label><input type="date" value="${s.date}" onchange="window.updateSession(${sIdx}, 'date', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black text-[#8C7355] text-center"></div><div><label class="text-[10px] font-black text-[#C4B19E] block mb-1 text-center text-[#8C7355] uppercase font-black">地點</label><input type="text" value="${s.location}" onchange="window.updateSession(${sIdx}, 'location', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black text-center" placeholder="在哪打？"></div><div><label class="text-[10px] font-black text-[#C4B19E] block mb-1 text-center text-[#8C7355] uppercase font-black">底/台</label><input type="text" value="${s.stakes}" onchange="window.updateSession(${sIdx}, 'stakes', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black text-center"></div><div><label class="text-[10px] font-black text-[#C4B19E] block mb-1 text-center text-[#8C7355] uppercase font-black">將數</label><input type="number" value="${s.rounds}" onchange="window.updateSession(${sIdx}, 'rounds', this.value)" class="w-full bg-[#F5E6D3]/30 border-none rounded-xl px-4 py-2 text-xs font-black text-center"></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">${s.players.map((p, pIdx) => `<div class="flex items-center justify-center gap-4 p-3 rounded-2xl border-2 ${pIdx < 2 ? 'bg-[#F5E6D3]/10 border-[#F5E6D3]/50' : 'bg-[#FBF8F5] border-transparent shadow-inner'}">
+            
+            <select onchange="window.handlePlayerNameChange(${sIdx}, ${pIdx}, this.value)" class="w-20 bg-transparent border-b-2 border-dashed border-[#F5E6D3] text-[12px] font-black outline-none text-[#4A3728] text-center appearance-none cursor-pointer hover:border-[#8C7355] transition-all">
+                ${p.name ? `<option value="${p.name}" selected>${p.name}</option>` : '<option value="" selected disabled>選擇</option>'}
+                ${allNames.filter(n => n !== p.name).map(n => `<option value="${n}">${n}</option>`).join('')}
+                <option disabled>──────────</option>
+                <option value="___NEW___" class="font-bold text-[#8C7355]">+ 新增玩家...</option>
+                ${p.name ? `<option value="___EDIT___" class="font-bold text-[#8C7355]">✏️ 修改此名字...</option>` : ''}
+            </select>
+            
+            <div onclick="window.openCalculator({type:'mahjong', sIdx:${sIdx}, pIdx:${pIdx}})" class="flex-1 max-w-[120px] bg-white px-3 py-2 rounded-xl border border-gray-100 flex items-center justify-center shadow-sm cursor-pointer active:scale-95 transition-all text-center"><span class="text-[10px] text-[#C4B19E] mr-1">$</span><span class="text-sm font-black ${p.amount>=0?'text-[#8C7355]':'text-[#A64B4B]'}">${p.amount}</span></div></div>`).join('')}</div><div class="flex items-center justify-between mt-4 pt-4 border-t border-[#F5E6D3]"><div class="px-6 py-2 rounded-full inline-flex items-center gap-2 text-[10px] font-black ${s.players.reduce((a, b) => a + (Number(b.amount) || 0), 0) === 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'}"><i data-lucide="${s.players.reduce((a, b) => a + (Number(b.amount) || 0), 0) === 0 ? 'check-circle-2' : 'alert-circle'}" size="14"></i><span>核算：${s.players.reduce((a, b) => a + (Number(b.amount) || 0), 0)}</span></div>${!s.note ? `<button onclick="window.updateSession(${sIdx}, 'note', ' ')" class="text-[10px] font-black text-[#8C7355] flex items-center gap-1 active:underline"><i data-lucide="plus-circle" size="14"></i> 筆記</button>` : ''}</div>${s.note ? `<div class="mt-4 animate-in"><textarea onchange="window.updateSession(${sIdx}, 'note', this.value)" class="w-full bg-[#F5E6D3]/20 border-2 border-dashed border-[#F5E6D3] rounded-2xl p-4 text-[11px] font-medium resize-none h-20 outline-none text-center" placeholder="在此輸入筆記...">${s.note.trim()}</textarea></div>` : ''}</div>`).join('')}</div><div class="p-4 bg-white border-t border-[#F5E6D3] shadow-lg"><button onclick="window.saveToCloud()" id="modal-save-btn" class="w-full py-4 bg-[#8C7355] text-white rounded-[2rem] font-black shadow-lg flex items-center justify-center gap-3 transition-all active:scale-[0.98] transform hover:translate-y-[-1px]"><i data-lucide="save" size="20"></i> 儲存資料</button></div>`;
             lucide.createIcons();
+
+            // 新增：恢復捲動位置
+            const newContainer = document.getElementById('modal-scroll-container');
+            if (newContainer) newContainer.scrollTop = scrollPos;
         };
 
         window.renderRedDotModal = () => {
