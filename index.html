@@ -417,6 +417,14 @@
 
         // --- 4. 功能交互掛載 (window) ---
 
+        // NEW: 修復月份切換功能
+        window.changeMonth = (offset) => {
+            const d = new Date(state.currentDate);
+            d.setMonth(d.getMonth() + offset);
+            state.currentDate = d;
+            window.render();
+        };
+
         window.openModal = (ds) => {
             state.selectedDateStr = ds; const ex = state.allSessions.filter(s => s.date === ds);
             state.editingSessions = ex.length > 0 ? JSON.parse(JSON.stringify(ex)) : [{ id: "new_" + Date.now(), date: ds, stakes: '30/10', location: '', rounds: 1, note: '', players: [{ name: NAME_1, amount: 0 }, { name: NAME_2, amount: 0 }, { name: '對手A', amount: 0 }, { name: '對手B', amount: 0 }] }];
@@ -461,7 +469,21 @@
         window.exportExcel = (type) => { let d = []; let f = (type === 'mahjong') ? "2026_麻將紀錄.xlsx" : "2026_紅點紀錄.xlsx"; if (type === 'mahjong') { d = state.allSessions.map(s => { const row = { "日期": s.date, "地點": s.location, "底台": s.stakes, "將數": s.rounds }; s.players.forEach((p, idx) => { row[`玩家${idx+1}`] = p.name; row[`金額${idx+1}`] = p.amount; }); return row; }); } else { d = state.redDotSessions.map(s => { const row = { "日期": s.date }; s.players.forEach((p, idx) => { row[`玩家${idx+1}`] = p.name; row[`金額${idx+1}`] = p.amount; }); return row; }); } if (!d.length) return window.showToast("無資料可匯出"); const ws = XLSX.utils.json_to_sheet(d); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Log"); XLSX.writeFile(wb, f); window.showToast("Excel 匯出成功"); };
         
         window.openCalculator = (info) => { state.calc.target = info; state.calc.expression = ''; document.getElementById('calc-display').textContent = '0'; document.getElementById('calc-modal').classList.remove('hidden'); lucide.createIcons(); };
-        window.pressCalc = (v) => { const disp = document.getElementById('calc-display'); if (v === 'C') state.calc.expression = ''; else if (v === 'back') state.calc.expression = state.calc.expression.slice(0, -1); else if (v === '=') { try { state.calc.expression = String(eval(state.calc.expression.replace(/×/g, '*').replace(/÷/g, '/'))); } catch (e) { state.calc.expression = 'Error'; } } else state.calc.expression += v; disp.textContent = state.calc.expression || '0'; };
+        window.pressCalc = (v) => { 
+            const disp = document.getElementById('calc-display'); 
+            if (v === 'C') state.calc.expression = ''; 
+            else if (v === 'back') state.calc.expression = state.calc.expression.slice(0, -1); 
+            else if (v === '=') { 
+                try { 
+                    state.calc.expression = String(eval(state.calc.expression.replace(/×/g, '*').replace(/÷/g, '/'))); 
+                } catch (e) { 
+                    state.calc.expression = 'Error'; 
+                } 
+            } else {
+                state.calc.expression += v; 
+            }
+            disp.textContent = state.calc.expression || '0'; 
+        };
         window.applyCalculator = () => { try { const val = eval(state.calc.expression) || 0; const { type, sIdx, pIdx } = state.calc.target; if (type === 'mahjong') { state.editingSessions[sIdx].players[pIdx].amount = Number(val); window.renderModal(); } else { state.editingRedDot.players[pIdx].amount = Number(val); window.renderRedDotModal(); } window.closeCalculator(); } catch (e) { window.showToast("計算錯誤"); } };
 
         // --- 5. 初始化驗證與啟動 ---
